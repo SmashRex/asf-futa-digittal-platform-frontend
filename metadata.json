@@ -1,0 +1,6 @@
+{
+  "name": "ASF Digital Platform",
+  "description": "The digital platform for the Anglican Students' Fellowship, FUTA, providing access to fellowship information, spiritual resources, educational materials, and communication.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

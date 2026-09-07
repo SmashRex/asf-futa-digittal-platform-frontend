@@ -1,0 +1,53 @@
+{
+  "id": "/",
+  "name": "ASF Digital Platform",
+  "short_name": "ASF FUTA",
+  "description": "Anglican Students' Fellowship (ASF) Digital Platform - Spiritual resources, Foundational School administration, Bible study materials, and fellowship announcements.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "categories": ["education", "lifestyle", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Bible Study",
+      "short_name": "Bible Study",
+      "description": "Access current and weekly Bible Study outlines",
+      "url": "/?shortcut=biblestudy"
+    },
+    {
+      "name": "Foundational School",
+      "short_name": "FS",
+      "description": "View Foundational School classes and progress",
+      "url": "/?shortcut=fs"
+    },
+    {
+      "name": "Events & Announcements",
+      "short_name": "Events",
+      "description": "Fellowship events and announcements",
+      "url": "/?shortcut=events"
+    }
+  ]
+}
