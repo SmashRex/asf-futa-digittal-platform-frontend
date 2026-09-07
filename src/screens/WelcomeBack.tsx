@@ -6,7 +6,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
-import { CheckCircle2, ShieldCheck, Heart } from 'lucide-react';
+import { CheckCircle2, ShieldCheck, Heart, AlertCircle, RefreshCw } from 'lucide-react';
 import { authService } from '../services/auth/auth.service';
 import { UserProfile } from '../types';
 
@@ -19,60 +19,72 @@ export default function WelcomeBack({ onLoginSuccess }: WelcomeBackProps) {
   const navigate = useNavigate();
   const [statusText, setStatusText] = useState('Verifying digital token...');
   const [isDone, setIsDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const hasExecutedRef = useRef(false);
 
-  // Get sign up or login state details passed from SignIn/CheckEmail
+  // Extract query params and router state
   const stateData = location.state || {};
-  const email = stateData.email || 'member@asf-futa.org';
-  const name = stateData.name || 'Temiloluwa Afolabi';
-  const department = stateData.department || 'Computer Science';
-  const level = stateData.level || '400 Level';
-  const subgroup = stateData.subgroup || 'Technical Team';
+  const queryParams = new URLSearchParams(location.search);
+  const token = queryParams.get('token') || stateData.token || undefined;
+  const email = stateData.email || queryParams.get('email') || 'member@asf-futa.org';
 
   useEffect(() => {
     if (hasExecutedRef.current) return;
     hasExecutedRef.current = true;
 
-    // Async authentication sequence
-    let isMounted = true;
+    let isSubscribed = true;
 
     const runAuthSequence = async () => {
-      // Stage 1: token validation
-      if (isMounted) setStatusText('Validating security credentials...');
-      
-      await new Promise(r => setTimeout(r, 600));
-
-      // Stage 2: Service authentication call
-      const queryParams = new URLSearchParams(window.location.search);
-      const token = queryParams.get('token') || undefined;
-
-      const { user } = await authService.verifyMagicLinkToken({
-        email,
-        token,
-      });
-
-      if (!isMounted) return;
-
-      setStatusText('Authentication successful!');
-      setIsDone(true);
-      
-      // Update application auth state
-      onLoginSuccess(user);
-
-      // Stage 3: Immediate clean navigation to home
-      setTimeout(() => {
-        if (isMounted) {
-          navigate('/home', { replace: true });
+      try {
+        if (isSubscribed) {
+          setStatusText('Validating security credentials...');
+          setError(null);
         }
-      }, 800);
+
+        // Stage 1: Brief artificial delay for visual smoothness
+        await new Promise(r => setTimeout(r, 400));
+
+        // Stage 2: Service authentication call
+        const response = await authService.verifyMagicLinkToken({
+          email,
+          token,
+        });
+
+        const authenticatedUser = response.user;
+
+        // Overlay state fields if user customized them during sign-up/sign-in
+        if (stateData.name) authenticatedUser.name = stateData.name;
+        if (stateData.department) authenticatedUser.department = stateData.department;
+        if (stateData.level) authenticatedUser.level = stateData.level;
+        if (stateData.subgroup) authenticatedUser.subgroup = stateData.subgroup;
+
+        if (!isSubscribed) return;
+
+        setStatusText('Authentication successful!');
+        setIsDone(true);
+
+        // Update application global auth state
+        onLoginSuccess(authenticatedUser);
+
+        // Stage 3: Immediate clean navigation to home
+        setTimeout(() => {
+          navigate('/home', { replace: true });
+        }, 600);
+      } catch (err: any) {
+        if (isSubscribed) {
+          setIsDone(false);
+          setError(err.message || 'Token verification failed. Please request a new magic link.');
+          setStatusText('Verification Failed');
+        }
+      }
     };
 
     runAuthSequence();
 
     return () => {
-      isMounted = false;
+      isSubscribed = false;
     };
-  }, [email, name, department, level, subgroup, onLoginSuccess, navigate]);
+  }, []); // Run once on mount
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 max-w-md mx-auto text-center" id="welcome-back-screen">
@@ -80,10 +92,14 @@ export default function WelcomeBack({ onLoginSuccess }: WelcomeBackProps) {
         <Logo size="lg" theme="maroon" />
       </div>
 
-      <div className="space-y-4">
-        {/* Animated Visual Loader */}
+      <div className="space-y-4 w-full">
+        {/* Animated Visual Status Indicator */}
         <div className="flex justify-center h-16 items-center">
-          {isDone ? (
+          {error ? (
+            <div className="bg-red-50 text-red-600 p-3 rounded-full border border-red-200">
+              <AlertCircle className="w-10 h-10" />
+            </div>
+          ) : isDone ? (
             <div className="bg-emerald-50 text-emerald-600 p-3 rounded-full border border-emerald-200 animate-bounce">
               <CheckCircle2 className="w-10 h-10" />
             </div>
@@ -95,22 +111,41 @@ export default function WelcomeBack({ onLoginSuccess }: WelcomeBackProps) {
           )}
         </div>
 
-        {/* Dynamic Titles */}
+        {/* Dynamic Titles & Status */}
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-[var(--color-text-primary)]">
-            {isDone ? 'Welcome Back!' : 'Please Wait'}
+            {error ? 'Authentication Failed' : isDone ? 'Welcome Back!' : 'Please Wait'}
           </h2>
           <p className="text-[var(--color-text-secondary)] text-sm mt-1 select-none">
             {statusText}
           </p>
         </div>
 
+        {/* Error Details & Recovery Actions */}
+        {error && (
+          <div className="card-surface p-4 mt-4 space-y-4 text-left border border-red-200 bg-red-50/50 rounded-xl" id="auth-error-card">
+            <p className="text-xs text-red-800 leading-relaxed font-medium">
+              {error}
+            </p>
+            <button
+              onClick={() => navigate('/sign-in', { replace: true })}
+              className="btn-primary w-full flex items-center justify-center gap-2 text-sm py-2.5"
+              id="return-to-signin-btn"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Request New Magic Link</span>
+            </button>
+          </div>
+        )}
+
         {/* Spiritual encouragement quote */}
-        <div className="pt-8 opacity-60 text-xs text-[var(--color-text-secondary)] flex flex-col items-center gap-1 leading-relaxed">
-          <Heart className="w-3.5 h-3.5 text-[var(--color-primary)] animate-pulse" />
-          <span>"Behold, how good and how pleasant it is for</span>
-          <span>brethren to dwell together in unity!"</span>
-        </div>
+        {!error && (
+          <div className="pt-8 opacity-60 text-xs text-[var(--color-text-secondary)] flex flex-col items-center gap-1 leading-relaxed">
+            <Heart className="w-3.5 h-3.5 text-[var(--color-primary)] animate-pulse" />
+            <span>"Behold, how good and how pleasant it is for</span>
+            <span>brethren to dwell together in unity!"</span>
+          </div>
+        )}
       </div>
     </div>
   );

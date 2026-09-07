@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { UserProfile, Notification, UserRole } from './types';
 import { mockNotifications } from './data/mockData';
@@ -210,33 +210,47 @@ function AppContent() {
   }, [notifications]);
 
   // Auth Action handlers
-  const handleLoginSuccess = (userFields: {
+  const handleLoginSuccess = useCallback((userOrFields: UserProfile | {
     name: string;
     email: string;
     department: string;
     level: string;
     subgroup?: string;
+    role?: UserRole;
   }) => {
-    // If the logging email matches our designated mock admin email, auto-grant administrative privileges
-    let role: UserRole = 'Member';
-    if (userFields.email.toLowerCase() === 'admin@asf-futa.org') {
-      role = 'Publicity Coordinator';
-    } else if (userFields.email.toLowerCase() === 'president@asf-futa.org') {
-      role = 'President / Executive';
+    let profile: UserProfile;
+
+    if ('id' in userOrFields && userOrFields.id) {
+      // It is already a full UserProfile object
+      profile = userOrFields as UserProfile;
+    } else {
+      let role: UserRole = userOrFields.role || 'Member';
+      const lowerEmail = userOrFields.email.toLowerCase();
+      if (lowerEmail === 'admin@asf-futa.org') {
+        role = 'Publicity Coordinator';
+      } else if (lowerEmail === 'president@asf-futa.org') {
+        role = 'President / Executive';
+      }
+
+      profile = {
+        id: `user_${Date.now()}`,
+        name: userOrFields.name,
+        email: userOrFields.email,
+        department: userOrFields.department,
+        level: userOrFields.level,
+        subgroup: userOrFields.subgroup,
+        role: role,
+        isAlumni: userOrFields.level === 'Alumni'
+      };
     }
 
-    const profile: UserProfile = {
-      id: `user_${Date.now()}`,
-      name: userFields.name,
-      email: userFields.email,
-      department: userFields.department,
-      level: userFields.level,
-      subgroup: userFields.subgroup,
-      role: role,
-      isAlumni: userFields.level === 'Alumni'
-    };
     setCurrentUser(profile);
-  };
+    try {
+      localStorage.setItem('asf_user_session', JSON.stringify(profile));
+    } catch {
+      // storage quota or disabled
+    }
+  }, []);
 
   const handleUpdateProfile = (updatedProfile: UserProfile) => {
     setCurrentUser(updatedProfile);

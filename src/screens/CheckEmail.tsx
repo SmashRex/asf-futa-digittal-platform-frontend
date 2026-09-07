@@ -17,8 +17,11 @@ export default function CheckEmail() {
   const email = stateData.email || 'brother@asf-futa.org';
 
   const handleSimulateClick = () => {
-    // Route to welcome-back transitional state, passing the registration/login details
-    navigate('/welcome-back', { state: stateData });
+    // Route to welcome-back transitional state with a mock authorization token
+    const mockToken = `simulated_magic_token_${Date.now()}`;
+    navigate(`/welcome-back?token=${mockToken}&email=${encodeURIComponent(email)}`, { 
+      state: { ...stateData, token: mockToken, email } 
+    });
   };
 
   return (
