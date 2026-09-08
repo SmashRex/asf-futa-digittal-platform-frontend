@@ -38,6 +38,7 @@ class RemindersService {
       await fetch(`${API_CONFIG.baseUrl}/events/${eventId}/remind`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ offset }),
       });
     }
@@ -58,6 +59,7 @@ class RemindersService {
     if (!APP_CONFIG.features.useMockServices) {
       await fetch(`${API_CONFIG.baseUrl}/events/${eventId}/remind`, {
         method: 'DELETE',
+        credentials: 'include',
       });
     }
 

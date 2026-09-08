@@ -43,21 +43,25 @@ const SELECTABLE_ROLES: { role: UserRole; label: string; desc: string }[] = [
 
 export default function Profile({ currentUser, onUpdateProfile, onToggleRole }: ProfileProps) {
   // If no user context, fallback
-  const user = currentUser || {
+  const user: UserProfile = currentUser || {
     id: 'user_01',
     name: 'Temiloluwa Afolabi',
     email: 'member@asf-futa.org',
     department: 'Computer Science',
+    academicLevel: '400 Level',
     level: '400 Level',
     subgroup: 'Technical Team',
+    roles: ['Member'],
     role: 'Member',
+    accountStatus: 'Active',
+    membershipStatus: 'Active Student',
     isAlumni: false
   };
 
   // Editable fields state
   const [name, setName] = useState(user.name);
   const [department, setDepartment] = useState(user.department);
-  const [level, setLevel] = useState(user.level);
+  const [level, setLevel] = useState(user.academicLevel || user.level || '400 Level');
   const [subgroup, setSubgroup] = useState(user.subgroup || '');
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
   
@@ -79,7 +83,8 @@ export default function Profile({ currentUser, onUpdateProfile, onToggleRole }: 
       ...user,
       name,
       department,
-      level,
+      academicLevel: level,
+      level: level,
       subgroup: subgroup || undefined,
       avatarUrl: avatarUrl || undefined
     });

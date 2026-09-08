@@ -83,6 +83,8 @@ import { AdminRouteGuard } from './components/admin/AdminRouteGuard';
 import { DevToolsDrawer } from './dev/DevToolsDrawer';
 import Header from './components/Header';
 import NavigationDrawer from './components/NavigationDrawer';
+import { authService } from './services/auth/auth.service';
+import { APP_CONFIG } from './config/app.config';
 
 function AppContent() {
   const location = useLocation();
@@ -98,6 +100,28 @@ function AppContent() {
       return null;
     }
   });
+
+  // Verify backend session on mount in production mode
+  useEffect(() => {
+    if (!APP_CONFIG.features.useMockServices) {
+      let isSubscribed = true;
+      authService.fetchCurrentUser()
+        .then(user => {
+          if (isSubscribed) {
+            setCurrentUser(user);
+          }
+        })
+        .catch(() => {
+          if (isSubscribed) {
+            setCurrentUser(null);
+          }
+        });
+
+      return () => {
+        isSubscribed = false;
+      };
+    }
+  }, []);
 
   const [notifications, setNotifications] = useState<Notification[]>(() => {
     try {
@@ -232,15 +256,20 @@ function AppContent() {
         role = 'President / Executive';
       }
 
+      const levelStr = userOrFields.level || '400 Level';
       profile = {
         id: `user_${Date.now()}`,
         name: userOrFields.name,
         email: userOrFields.email,
         department: userOrFields.department,
-        level: userOrFields.level,
+        academicLevel: levelStr,
+        level: levelStr,
         subgroup: userOrFields.subgroup,
+        roles: [role],
         role: role,
-        isAlumni: userOrFields.level === 'Alumni'
+        accountStatus: 'Active',
+        membershipStatus: levelStr === 'Alumni' ? 'Alumni' : 'Active Student',
+        isAlumni: levelStr === 'Alumni'
       };
     }
 
@@ -259,14 +288,20 @@ function AppContent() {
   const handleRoleChange = (newRole: UserRole) => {
     let updatedUser: UserProfile;
     if (currentUser) {
+      const currentLevel = currentUser.academicLevel || currentUser.level || '400 Level';
+      const newLevel = newRole === 'Alumni' ? 'Alumni' : (currentLevel === 'Alumni' ? '400 Level' : currentLevel);
       updatedUser = {
         ...currentUser,
+        roles: [newRole],
         role: newRole,
-        isAlumni: newRole === 'Alumni' || currentUser.level === 'Alumni',
-        level: newRole === 'Alumni' ? 'Alumni' : (currentUser.level === 'Alumni' ? '400 Level' : currentUser.level)
+        academicLevel: newLevel,
+        level: newLevel,
+        membershipStatus: newLevel === 'Alumni' ? 'Alumni' : 'Active Student',
+        isAlumni: newRole === 'Alumni' || newLevel === 'Alumni',
       };
     } else {
       // Auto-provision an active mock session for testing screen flows seamlessly
+      const targetLevel = newRole === 'Alumni' ? 'Alumni' : '400 Level';
       updatedUser = {
         id: 'user_active_session',
         name: newRole === 'President / Executive' 
@@ -292,7 +327,8 @@ function AppContent() {
           ? 'publicity@asf-futa.org' 
           : 'member@asf-futa.org',
         department: 'Computer Science',
-        level: newRole === 'Alumni' ? 'Alumni' : '400 Level',
+        academicLevel: targetLevel,
+        level: targetLevel,
         subgroup: newRole === 'President / Executive' 
           ? 'Executive Council' 
           : newRole === 'Publicity Coordinator' 
@@ -300,7 +336,10 @@ function AppContent() {
           : newRole === 'FS Teacher' 
           ? 'Foundational School Facilitator' 
           : 'Technical Team',
+        roles: [newRole],
         role: newRole,
+        accountStatus: 'Active',
+        membershipStatus: targetLevel === 'Alumni' ? 'Alumni' : 'Active Student',
         isAlumni: newRole === 'Alumni'
       };
     }
@@ -334,7 +373,12 @@ function AppContent() {
     handleRoleChange(newRole);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch (e) {
+      console.warn('Backend session logout notification failed:', e);
+    }
     setCurrentUser(null);
     localStorage.removeItem('asf_user_session');
   };

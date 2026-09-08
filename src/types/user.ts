@@ -10,12 +10,16 @@ export interface UserProfile {
   name: string;
   email: string;
   department: string;
-  level: string; // e.g. "400 Level"
-  subgroup?: string; // optional subgroup e.g. "Choir"
-  role: UserRole;
-  isAlumni: boolean;
-  avatarUrl?: string;
+  academicLevel: string; // Authoritative backend contract property e.g. "400 Level"
+  level?: string; // UI alias for academicLevel
   phoneNumber?: string;
+  subgroup?: string;
+  accountStatus?: 'Active' | 'Suspended' | 'Deactivated';
+  membershipStatus?: 'Active Student' | 'Alumni' | 'Visiting';
+  avatarUrl?: string;
+  roles: string[]; // Authoritative backend contract property: array of additive role strings
+  role?: UserRole; // Derived primary role for existing UI component display
+  isAlumni?: boolean;
 }
 
 export interface Notification {

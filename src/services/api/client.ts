@@ -4,6 +4,7 @@
  */
 
 import { API_CONFIG } from '../../config/api.config';
+import { APP_CONFIG } from '../../config/app.config';
 import { ApiResponse, ApiError } from './types';
 
 export class ApiClient {
@@ -15,27 +16,76 @@ export class ApiClient {
 
   private getHeaders(): HeadersInit {
     const headers: Record<string, string> = { ...API_CONFIG.headers };
-    const token = localStorage.getItem('asf_auth_token');
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
+    // Production authentication is cookie-based via HttpOnly asf_session.
+    // In mock/test simulation mode only, attach simulation token if present.
+    if (APP_CONFIG.features.useMockServices) {
+      const token = localStorage.getItem('asf_auth_token');
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
     }
     return headers;
   }
 
+  private async handleErrorResponse(response: Response): Promise<never> {
+    let errorCode = 'HTTP_ERROR';
+    let errorMessage = `API Error ${response.status}: ${response.statusText}`;
+    let errorDetails: unknown = undefined;
+
+    try {
+      const data = await response.json();
+      if (data?.error?.code) {
+        errorCode = data.error.code;
+        errorMessage = data.error.message || errorMessage;
+        errorDetails = data.error.details;
+      } else if (data?.message) {
+        errorMessage = data.message;
+      }
+    } catch {
+      // Body was not JSON
+    }
+
+    const error: ApiError = {
+      statusCode: response.status,
+      code: errorCode,
+      message: errorMessage,
+      details: errorDetails,
+    };
+    throw error;
+  }
+
+  private async processResponse<T>(response: Response): Promise<ApiResponse<T>> {
+    if (!response.ok) {
+      await this.handleErrorResponse(response);
+    }
+    const result = await response.json();
+    if (result && result.success === false && result.error) {
+      const error: ApiError = {
+        statusCode: response.status || 400,
+        code: result.error.code || 'API_ERROR',
+        message: result.error.message || 'API request returned an error',
+        details: result.error.details,
+      };
+      throw error;
+    }
+    return result;
+  }
+
   async get<T>(path: string): Promise<ApiResponse<T>> {
-    // If backend isn't live yet, callers will catch or fallback to mock data via service layer abstraction
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
         method: 'GET',
         headers: this.getHeaders(),
+        credentials: 'include',
       });
-      if (!response.ok) {
-        throw new Error(`API Error ${response.status}: ${response.statusText}`);
-      }
-      return await response.json();
+      return await this.processResponse<T>(response);
     } catch (err: any) {
+      if (err.statusCode && err.code) {
+        throw err;
+      }
       throw {
         statusCode: 500,
+        code: 'NETWORK_ERROR',
         message: err.message || 'Network request failed',
       } as ApiError;
     }
@@ -46,15 +96,17 @@ export class ApiClient {
       const response = await fetch(`${this.baseUrl}${path}`, {
         method: 'POST',
         headers: this.getHeaders(),
+        credentials: 'include',
         body: JSON.stringify(body),
       });
-      if (!response.ok) {
-        throw new Error(`API Error ${response.status}: ${response.statusText}`);
-      }
-      return await response.json();
+      return await this.processResponse<T>(response);
     } catch (err: any) {
+      if (err.statusCode && err.code) {
+        throw err;
+      }
       throw {
         statusCode: 500,
+        code: 'NETWORK_ERROR',
         message: err.message || 'Network request failed',
       } as ApiError;
     }
@@ -65,15 +117,17 @@ export class ApiClient {
       const response = await fetch(`${this.baseUrl}${path}`, {
         method: 'PUT',
         headers: this.getHeaders(),
+        credentials: 'include',
         body: JSON.stringify(body),
       });
-      if (!response.ok) {
-        throw new Error(`API Error ${response.status}: ${response.statusText}`);
-      }
-      return await response.json();
+      return await this.processResponse<T>(response);
     } catch (err: any) {
+      if (err.statusCode && err.code) {
+        throw err;
+      }
       throw {
         statusCode: 500,
+        code: 'NETWORK_ERROR',
         message: err.message || 'Network request failed',
       } as ApiError;
     }
@@ -84,14 +138,16 @@ export class ApiClient {
       const response = await fetch(`${this.baseUrl}${path}`, {
         method: 'DELETE',
         headers: this.getHeaders(),
+        credentials: 'include',
       });
-      if (!response.ok) {
-        throw new Error(`API Error ${response.status}: ${response.statusText}`);
-      }
-      return await response.json();
+      return await this.processResponse<T>(response);
     } catch (err: any) {
+      if (err.statusCode && err.code) {
+        throw err;
+      }
       throw {
         statusCode: 500,
+        code: 'NETWORK_ERROR',
         message: err.message || 'Network request failed',
       } as ApiError;
     }

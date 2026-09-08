@@ -11,9 +11,13 @@ export const mockUsers: Record<string, UserProfile> = {
     name: 'Temiloluwa Afolabi',
     email: 'member@asf-futa.org',
     department: 'Computer Science',
+    academicLevel: '400 Level',
     level: '400 Level',
     subgroup: 'Technical Team',
+    roles: ['Member'],
     role: 'Member',
+    accountStatus: 'Active',
+    membershipStatus: 'Active Student',
     isAlumni: false
   },
   admin: {
@@ -21,9 +25,13 @@ export const mockUsers: Record<string, UserProfile> = {
     name: 'Brother Samuel Adebayo',
     email: 'admin@asf-futa.org',
     department: 'Electrical Engineering',
+    academicLevel: '500 Level',
     level: '500 Level',
     subgroup: 'Executives',
+    roles: ['Publicity Coordinator', 'Member'],
     role: 'Publicity Coordinator',
+    accountStatus: 'Active',
+    membershipStatus: 'Active Student',
     isAlumni: false
   },
   president: {
@@ -31,9 +39,13 @@ export const mockUsers: Record<string, UserProfile> = {
     name: 'Brother David Olatunji',
     email: 'president@asf-futa.org',
     department: 'Mechanical Engineering',
+    academicLevel: '500 Level',
     level: '500 Level',
     subgroup: 'Executives',
+    roles: ['President / Executive', 'Member'],
     role: 'President / Executive',
+    accountStatus: 'Active',
+    membershipStatus: 'Active Student',
     isAlumni: false
   }
 };

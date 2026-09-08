@@ -5,12 +5,10 @@
 
 export type UserRole = 
   | 'Member'
-  | 'Regular Member'
   | 'FS Student'
   | 'FS Teacher'
   | 'VP / FS Coordinator'
   | 'Bible Study Coordinator'
-  | 'Choir Coordinator'
   | 'Publicity Coordinator'
   | 'General Secretary'
   | 'Organizing Coordinator'
@@ -21,6 +19,9 @@ export type UserRole =
   | 'Librarian'
   | 'President / Executive'
   | 'Technical Administrator'
+  // Legacy/UI Aliases (flagged for review against backend contract)
+  | 'Regular Member'
+  | 'Choir Coordinator'
   | 'Alumni';
 
 export enum RoleLevel {

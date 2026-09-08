@@ -42,6 +42,14 @@ describe('Role & Permission Authorization Matrix', () => {
     expect(isAdminRole('President / Executive')).toBe(true);
   });
 
+  it('should grant permissions additively when user has multiple roles', () => {
+    const multiRoles = ['Member', 'FS Teacher', 'Publicity Coordinator'];
+    expect(hasPermission(multiRoles, 'view_member_content')).toBe(true);
+    expect(hasPermission(multiRoles, 'manage_fs_school')).toBe(true);
+    expect(hasPermission(multiRoles, 'create_events')).toBe(true);
+    expect(isAdminRole(multiRoles)).toBe(true);
+  });
+
   it('should safely return false when role is undefined', () => {
     expect(hasPermission(undefined, 'view_member_content')).toBe(false);
     expect(isAdminRole(undefined)).toBe(false);

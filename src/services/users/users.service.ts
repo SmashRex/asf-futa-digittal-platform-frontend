@@ -19,7 +19,7 @@ class UsersService {
   async updateRole(role: UserRole): Promise<UserProfile | null> {
     const profile = await this.getProfile();
     if (profile) {
-      const updated = { ...profile, role };
+      const updated: UserProfile = { ...profile, roles: [role], role };
       localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(updated));
       return updated;
     }

@@ -44,6 +44,15 @@ export default function WelcomeBack({ onLoginSuccess }: WelcomeBackProps) {
         // Stage 1: Brief artificial delay for visual smoothness
         await new Promise(r => setTimeout(r, 400));
 
+        if (!token) {
+          if (isSubscribed) {
+            setIsDone(false);
+            setError('Magic link token is missing from the verification link. Please check your email and click the full link.');
+            setStatusText('Verification Link Invalid');
+          }
+          return;
+        }
+
         // Stage 2: Service authentication call
         const response = await authService.verifyMagicLinkToken({
           email,
@@ -55,7 +64,10 @@ export default function WelcomeBack({ onLoginSuccess }: WelcomeBackProps) {
         // Overlay state fields if user customized them during sign-up/sign-in
         if (stateData.name) authenticatedUser.name = stateData.name;
         if (stateData.department) authenticatedUser.department = stateData.department;
-        if (stateData.level) authenticatedUser.level = stateData.level;
+        if (stateData.level) {
+          authenticatedUser.academicLevel = stateData.level;
+          authenticatedUser.level = stateData.level;
+        }
         if (stateData.subgroup) authenticatedUser.subgroup = stateData.subgroup;
 
         if (!isSubscribed) return;

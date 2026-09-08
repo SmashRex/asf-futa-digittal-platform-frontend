@@ -59,7 +59,9 @@ export default function NavigationDrawer({
 
   if (!isOpen) return null;
 
-  const hasAdminAccess = currentUser && isAuthorizedAdminRole(currentUser.role);
+  const hasAdminAccess = Boolean(
+    currentUser && Array.isArray(currentUser.roles) && currentUser.roles.some(r => isAuthorizedAdminRole(r))
+  );
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -168,7 +170,7 @@ export default function NavigationDrawer({
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="text-white/90 text-[10px] font-bold tracking-wider uppercase inline-flex items-center gap-1 bg-white/15 px-2 py-0.5 rounded-md">
                   {hasAdminAccess && <ShieldCheck className="w-3 h-3 text-amber-300 shrink-0" />}
-                  <span className="truncate">{currentUser ? currentUser.role : 'Member'}</span>
+                  <span className="truncate">{currentUser?.roles?.join(', ') || currentUser?.role || 'Member'}</span>
                 </span>
               </div>
             </div>

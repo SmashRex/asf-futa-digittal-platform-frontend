@@ -27,7 +27,9 @@ class EventsService {
       if (params.horizon && params.horizon !== 'all') queryParams.append('horizon', params.horizon);
       if (params.searchQuery) queryParams.append('search', params.searchQuery);
 
-      const response = await fetch(`${API_CONFIG.baseUrl}/events?${queryParams.toString()}`);
+      const response = await fetch(`${API_CONFIG.baseUrl}/events?${queryParams.toString()}`, {
+        credentials: 'include',
+      });
       const result = await response.json();
       return result.data || [];
     }
@@ -76,7 +78,9 @@ class EventsService {
    */
   async getEventById(id: string): Promise<EventItem | null> {
     if (!APP_CONFIG.features.useMockServices) {
-      const response = await fetch(`${API_CONFIG.baseUrl}/events/${id}`);
+      const response = await fetch(`${API_CONFIG.baseUrl}/events/${id}`, {
+        credentials: 'include',
+      });
       if (!response.ok) return null;
       const result = await response.json();
       return result.data || null;
@@ -121,6 +125,7 @@ class EventsService {
       const response = await fetch(`${API_CONFIG.baseUrl}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(eventData),
       });
       const result = await response.json();

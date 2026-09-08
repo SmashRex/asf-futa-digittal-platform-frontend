@@ -45,12 +45,18 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   'Alumni': ['view_member_content'],
 };
 
-export const hasPermission = (userRole: UserRole | undefined, permission: Permission): boolean => {
-  if (!userRole) return false;
-  const permissions = ROLE_PERMISSIONS[userRole] || [];
-  return permissions.includes(permission);
+export const hasPermission = (
+  userRoles: string[] | UserRole | undefined, 
+  permission: Permission
+): boolean => {
+  if (!userRoles) return false;
+  const roles = Array.isArray(userRoles) ? userRoles : [userRoles];
+  return roles.some((role) => {
+    const permissions = ROLE_PERMISSIONS[role as UserRole] || [];
+    return permissions.includes(permission);
+  });
 };
 
-export const isAdminRole = (userRole: UserRole | undefined): boolean => {
-  return hasPermission(userRole, 'access_admin_dashboard');
+export const isAdminRole = (userRoles: string[] | UserRole | undefined): boolean => {
+  return hasPermission(userRoles, 'access_admin_dashboard');
 };

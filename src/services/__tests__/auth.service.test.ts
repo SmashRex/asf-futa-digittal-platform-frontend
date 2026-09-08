@@ -34,13 +34,16 @@ describe('Auth Service', () => {
     expect(authService.getToken()).toBe(res.token);
   });
 
-  it('should verify valid magic link token and persist session token', async () => {
+  it('should verify valid magic link token and persist session token with roles array', async () => {
     const res = await authService.verifyMagicLinkToken({
       email: 'student@futa.edu.ng',
+      token: 'test_raw_token_123',
     });
 
     expect(res.token).toBeDefined();
     expect(res.user.email).toBe('student@futa.edu.ng');
+    expect(Array.isArray(res.user.roles)).toBe(true);
+    expect(res.user.roles).toContain('Member');
     expect(authService.getToken()).toBe(res.token);
   });
 

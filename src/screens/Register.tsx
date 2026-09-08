@@ -74,11 +74,16 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
         subgroup: subgroup.trim() || undefined,
       });
 
-      // Update application auth state
-      onLoginSuccess(response.user);
-
-      // Transition to Member Portal
-      navigate('/home', { replace: true });
+      if (response.user) {
+        // Update application auth state for immediate session
+        onLoginSuccess(response.user);
+        navigate('/home', { replace: true });
+      } else {
+        // Production backend dispatches magic link after registration
+        navigate('/check-email', { 
+          state: { email: trimmedEmail } 
+        });
+      }
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please verify your details and try again.');
     } finally {

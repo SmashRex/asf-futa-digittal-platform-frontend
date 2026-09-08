@@ -117,7 +117,12 @@ export const AdminLayout: React.FC = () => {
     }
   })();
 
-  const effectiveCurrentRole = devState.simulatedRoleOverride || userSession?.role;
+  const userRolesList: string[] = Array.isArray(userSession?.roles)
+    ? userSession.roles
+    : [];
+
+  const adminRoleInSession = userRolesList.find(r => isAuthorizedAdminRole(r));
+  const effectiveCurrentRole = devState.simulatedRoleOverride || adminRoleInSession;
 
   const [activeRole, setActiveRole] = useState<AdminRole>(() => {
     if (effectiveCurrentRole && isAuthorizedAdminRole(effectiveCurrentRole)) {
@@ -135,18 +140,20 @@ export const AdminLayout: React.FC = () => {
   useEffect(() => {
     if (devState.simulatedRoleOverride && isAuthorizedAdminRole(devState.simulatedRoleOverride)) {
       setActiveRole(devState.simulatedRoleOverride);
-    } else if (userSession?.role && isAuthorizedAdminRole(userSession.role)) {
-      setActiveRole(userSession.role);
+    } else if (adminRoleInSession && isAuthorizedAdminRole(adminRoleInSession)) {
+      setActiveRole(adminRoleInSession);
     }
-  }, [devState.simulatedRoleOverride, userSession?.role]);
+  }, [devState.simulatedRoleOverride, adminRoleInSession]);
 
-  const userRole = devState.simulatedRoleOverride || userSession?.role;
-  const isRegularMemberSession = userRole && !isAuthorizedAdminRole(userRole);
+  const hasAnyAdminRole = devState.simulatedRoleOverride 
+    ? isAuthorizedAdminRole(devState.simulatedRoleOverride)
+    : userRolesList.some(r => isAuthorizedAdminRole(r));
+
   const isActiveRoleAuthorized = isAuthorizedAdminRole(activeRole);
 
-  // If user session is a regular member or non-admin role, OR if activeRole is not an authorized admin role:
+  // If user session has no authorized admin roles, OR if activeRole is not an authorized admin role:
   // IMMEDIATELY RETURN TO MEMBER APP (DO NOT RENDER ADMIN PORTAL)
-  if (isRegularMemberSession || !isActiveRoleAuthorized) {
+  if (!hasAnyAdminRole || !isActiveRoleAuthorized) {
     return <Navigate to="/home" replace />;
   }
 

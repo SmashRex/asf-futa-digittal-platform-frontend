@@ -4,6 +4,7 @@
  */
 
 import { UserProfile, UserRole } from '../../types';
+import { isAuthorizedAdminRole } from '../../types/adminTypes';
 import { APP_CONFIG } from '../../config/app.config';
 import { API_CONFIG } from '../../config/api.config';
 
@@ -22,13 +23,58 @@ export interface MagicLinkRequestPayload {
 
 export interface VerifyTokenResponse {
   user: UserProfile;
-  token: string;
+  token?: string;
 }
 
 class AuthService {
+  private normalizeUser(rawUser: any): UserProfile {
+    if (!APP_CONFIG.features.useMockServices) {
+      const missing: string[] = [];
+      if (!rawUser?.id) missing.push('id');
+      if (!rawUser?.email) missing.push('email');
+      if (!rawUser?.name) missing.push('name');
+      if (!rawUser?.department) missing.push('department');
+      if (!rawUser?.academicLevel && !rawUser?.level) missing.push('academicLevel');
+      if (!rawUser?.roles || !Array.isArray(rawUser.roles)) missing.push('roles (array)');
+      if (!rawUser?.accountStatus) missing.push('accountStatus');
+      if (!rawUser?.membershipStatus) missing.push('membershipStatus');
+
+      if (missing.length > 0) {
+        const error: any = new Error(`Contract violation: Backend response is missing required fields: ${missing.join(', ')}`);
+        error.code = 'INVALID_USER_CONTRACT';
+        throw error;
+      }
+    }
+
+    const roles: string[] = Array.isArray(rawUser?.roles) && rawUser.roles.length > 0
+      ? rawUser.roles 
+      : (rawUser?.role ? [rawUser.role] : ['Member']);
+    
+    // For presentation-only legacy badge display, prioritize administrative role if present
+    const presentationRole = (roles.find(r => isAuthorizedAdminRole(r)) || roles[0] || 'Member') as UserRole;
+    const academicLevel = rawUser?.academicLevel || rawUser?.level || '400 Level';
+    const membershipStatus = rawUser?.membershipStatus || (academicLevel === 'Alumni' ? 'Alumni' : 'Active Student');
+
+    return {
+      id: rawUser?.id || `usr_${Date.now()}`,
+      name: rawUser?.name || '',
+      email: rawUser?.email || '',
+      department: rawUser?.department || '',
+      academicLevel,
+      level: academicLevel,
+      subgroup: rawUser?.subgroup,
+      phoneNumber: rawUser?.phoneNumber,
+      accountStatus: rawUser?.accountStatus || 'Active',
+      membershipStatus,
+      avatarUrl: rawUser?.avatarUrl,
+      roles,
+      role: presentationRole,
+      isAlumni: membershipStatus === 'Alumni' || academicLevel === 'Alumni',
+    };
+  }
+
   /**
    * Register a new member account for the first time.
-   * A successful registration immediately creates an active member account.
    * Connects to backend: POST /api/auth/register
    */
   async register(payload: RegisterPayload): Promise<VerifyTokenResponse> {
@@ -36,35 +82,57 @@ class AuthService {
       const response = await fetch(`${API_CONFIG.baseUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Registration failed with status ${response.status}`);
+        let errCode = 'REGISTRATION_FAILED';
+        let errMsg = `Registration failed with status ${response.status}`;
+        let errDetails: unknown = undefined;
+        try {
+          const errData = await response.json();
+          if (errData?.error?.code) {
+            errCode = errData.error.code;
+            errMsg = errData.error.message || errMsg;
+            errDetails = errData.error.details;
+          } else if (errData?.message) {
+            errMsg = errData.message;
+          }
+        } catch {}
+        const error: any = new Error(errMsg);
+        error.code = errCode;
+        error.details = errDetails;
+        throw error;
       }
       const data = await response.json();
-      if (data.token) {
-        localStorage.setItem(APP_CONFIG.storageKeys.authToken, data.token);
-        localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(data.user));
+      const rawUser = data?.data?.user || data?.data || data?.user;
+      if (rawUser && (rawUser.id || rawUser.email)) {
+        const normalized = this.normalizeUser(rawUser);
+        // Note: Production session is managed via HttpOnly asf_session cookie.
+        localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(normalized));
+        return { user: normalized, token: data.token || data.data?.token };
       }
-      return data;
+      // Standard registration dispatches magic link (no immediate session)
+      return { user: undefined as any, token: undefined };
     }
 
     // Fallback simulation mode for development environment before backend is deployed
     return new Promise((resolve) => {
       setTimeout(() => {
-        const user: UserProfile = {
+        const rawUser = {
           id: `usr_${Date.now()}`,
           name: payload.name.trim(),
           email: payload.email.trim().toLowerCase(),
           department: payload.department.trim(),
-          level: payload.level,
+          academicLevel: payload.level,
           subgroup: payload.subgroup?.trim() || 'General Assembly',
           phoneNumber: payload.phoneNumber?.trim() || undefined,
-          role: 'Member',
-          isAlumni: payload.level === 'Alumni',
+          roles: ['Member'],
+          accountStatus: 'Active',
+          membershipStatus: payload.level === 'Alumni' ? 'Alumni' : 'Active Student',
         };
 
+        const user = this.normalizeUser(rawUser);
         const token = `asf_jwt_active_${Date.now()}`;
         localStorage.setItem(APP_CONFIG.storageKeys.authToken, token);
         localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(user));
@@ -80,15 +148,30 @@ class AuthService {
    */
   async requestMagicLink(payload: MagicLinkRequestPayload): Promise<{ success: boolean; message: string }> {
     if (!APP_CONFIG.features.useMockServices) {
-      // Real backend endpoint call
       const response = await fetch(`${API_CONFIG.baseUrl}/auth/magic-link`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to request login link');
+        let errCode = 'MAGIC_LINK_FAILED';
+        let errMsg = 'Failed to request login link';
+        let errDetails: unknown = undefined;
+        try {
+          const errData = await response.json();
+          if (errData?.error?.code) {
+            errCode = errData.error.code;
+            errMsg = errData.error.message || errMsg;
+            errDetails = errData.error.details;
+          } else if (errData?.message) {
+            errMsg = errData.message;
+          }
+        } catch {}
+        const error: any = new Error(errMsg);
+        error.code = errCode;
+        error.details = errDetails;
+        throw error;
       }
       return await response.json();
     }
@@ -106,53 +189,82 @@ class AuthService {
 
   /**
    * Verify token from magic link callback URL.
-   * Connects to backend: POST /api/auth/verify
+   * Connects to backend: POST /api/auth/verify with payload { token: "RAW_TOKEN" }
    */
-  async verifyMagicLinkToken(tokenPayload: { email: string; token?: string }): Promise<VerifyTokenResponse> {
+  async verifyMagicLinkToken(tokenPayload: { email?: string; token?: string }): Promise<VerifyTokenResponse> {
+    const rawToken = tokenPayload.token;
+
     if (!APP_CONFIG.features.useMockServices) {
+      if (!rawToken) {
+        const err: any = new Error('Magic link token is missing or invalid.');
+        err.code = 'TOKEN_REQUIRED';
+        throw err;
+      }
+
       const response = await fetch(`${API_CONFIG.baseUrl}/auth/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(tokenPayload),
+        credentials: 'include',
+        body: JSON.stringify({ token: rawToken }),
       });
+
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.message || 'Token verification failed');
+        let errCode = 'VERIFICATION_FAILED';
+        let errMsg = 'Token verification failed';
+        let errDetails: unknown = undefined;
+        try {
+          const errData = await response.json();
+          if (errData?.error?.code) {
+            errCode = errData.error.code;
+            errMsg = errData.error.message || errMsg;
+            errDetails = errData.error.details;
+          } else if (errData?.message) {
+            errMsg = errData.message;
+          }
+        } catch {}
+        const error: any = new Error(errMsg);
+        error.code = errCode;
+        error.details = errDetails;
+        throw error;
       }
+
       const data = await response.json();
-      if (data.token) {
-        localStorage.setItem(APP_CONFIG.storageKeys.authToken, data.token);
-        localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(data.user));
-      }
-      return data;
+      const rawUser = data?.data?.user || data?.data || data?.user || data;
+      const normalizedUser = this.normalizeUser(rawUser);
+
+      // Note: Production session is managed via HttpOnly asf_session cookie.
+      localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(normalizedUser));
+
+      return { user: normalizedUser, token: data.token || data?.data?.token };
     }
 
     // Fallback / simulation verification for development
     return new Promise((resolve) => {
-      let role: UserRole = 'Member';
-      const email = tokenPayload.email.toLowerCase();
+      let roleList: string[] = ['Member'];
+      const email = (tokenPayload.email || 'member@asf-futa.org').toLowerCase();
       if (email === 'admin@asf-futa.org') {
-        role = 'Publicity Coordinator';
+        roleList = ['Publicity Coordinator', 'Member'];
       } else if (email === 'president@asf-futa.org') {
-        role = 'President / Executive';
+        roleList = ['President / Executive', 'Member'];
       } else if (email === 'biblestudy@asf-futa.org') {
-        role = 'Bible Study Coordinator';
+        roleList = ['Bible Study Coordinator', 'Member'];
       } else if (email === 'fs@asf-futa.org') {
-        role = 'VP / FS Coordinator';
+        roleList = ['VP / FS Coordinator', 'Member'];
       } else if (email === 'tech@asf-futa.org') {
-        role = 'Technical Administrator';
+        roleList = ['Technical Administrator', 'Member'];
       }
 
-      const user: UserProfile = {
+      const user = this.normalizeUser({
         id: `usr_${Date.now()}`,
         name: email.startsWith('admin') ? 'ASF Admin' : (email.startsWith('president') ? 'Bro. President' : 'Fellowship Member'),
-        email: tokenPayload.email,
+        email: email,
         department: 'Computer Science',
-        level: '400 Level',
+        academicLevel: '400 Level',
         subgroup: 'General Assembly',
-        role: role,
-        isAlumni: false,
-      };
+        roles: roleList,
+        accountStatus: 'Active',
+        membershipStatus: 'Active Student',
+      });
 
       const token = `mock_jwt_token_${Date.now()}`;
       localStorage.setItem(APP_CONFIG.storageKeys.authToken, token);
@@ -163,23 +275,20 @@ class AuthService {
   }
 
   /**
-   * Asynchronously fetch current authenticated user profile from the backend:
-   * GET /api/auth/me or GET /api/users/me
+   * Asynchronously fetch current authenticated user profile from backend: GET /api/auth/me
    */
   async fetchCurrentUser(): Promise<UserProfile | null> {
-    const token = this.getToken();
-    if (!token) return null;
-
     if (!APP_CONFIG.features.useMockServices) {
       try {
         const response = await fetch(`${API_CONFIG.baseUrl}/auth/me`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
         });
         if (response.ok) {
-          const user: UserProfile = await response.json();
+          const rawData = await response.json();
+          const rawUser = rawData?.data?.user || rawData?.data || rawData?.user || rawData;
+          const user = this.normalizeUser(rawUser);
           localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(user));
           return user;
         }
@@ -197,7 +306,8 @@ class AuthService {
   getCurrentUser(): UserProfile | null {
     try {
       const saved = localStorage.getItem(APP_CONFIG.storageKeys.userSession);
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      return this.normalizeUser(JSON.parse(saved));
     } catch {
       return null;
     }
@@ -207,8 +317,9 @@ class AuthService {
    * Update current user profile.
    */
   async updateProfile(profile: UserProfile): Promise<UserProfile> {
-    localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(profile));
-    return profile;
+    const normalized = this.normalizeUser(profile);
+    localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(normalized));
+    return normalized;
   }
 
   /**
@@ -228,7 +339,18 @@ class AuthService {
   /**
    * Logout user and clear tokens.
    */
-  logout(): void {
+  async logout(): Promise<void> {
+    if (!APP_CONFIG.features.useMockServices) {
+      try {
+        await fetch(`${API_CONFIG.baseUrl}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+      } catch (e) {
+        console.warn('Logout endpoint call failed:', e);
+      }
+    }
     localStorage.removeItem(APP_CONFIG.storageKeys.userSession);
     localStorage.removeItem(APP_CONFIG.storageKeys.authToken);
   }

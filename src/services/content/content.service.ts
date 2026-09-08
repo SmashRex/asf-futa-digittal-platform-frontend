@@ -15,7 +15,9 @@ class ContentService {
    */
   async getSiteContent(): Promise<typeof SITE_CONTENT> {
     if (!APP_CONFIG.features.useMockServices) {
-      const response = await fetch(`${API_CONFIG.baseUrl}/content/site`);
+      const response = await fetch(`${API_CONFIG.baseUrl}/content/site`, {
+        credentials: 'include',
+      });
       const data = await response.json();
       return data.data;
     }
@@ -24,7 +26,9 @@ class ContentService {
 
   async getEventsContent(): Promise<typeof EVENTS_CONTENT> {
     if (!APP_CONFIG.features.useMockServices) {
-      const response = await fetch(`${API_CONFIG.baseUrl}/content/events`);
+      const response = await fetch(`${API_CONFIG.baseUrl}/content/events`, {
+        credentials: 'include',
+      });
       const data = await response.json();
       return data.data;
     }
@@ -40,6 +44,7 @@ class ContentService {
       await fetch(`${API_CONFIG.baseUrl}/content`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ section, data }),
       });
     }
