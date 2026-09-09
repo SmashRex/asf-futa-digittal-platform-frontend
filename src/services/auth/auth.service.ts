@@ -13,6 +13,8 @@ export interface RegisterPayload {
   email: string;
   department: string;
   level: string;
+  academicLevel?: string;
+  programDurationYears?: 4 | 5;
   phoneNumber?: string;
   subgroup?: string;
 }
@@ -69,6 +71,7 @@ class AuthService {
       avatarUrl: rawUser?.avatarUrl,
       roles,
       role: presentationRole,
+      programDurationYears: rawUser?.programDurationYears,
       isAlumni: membershipStatus === 'Alumni' || academicLevel === 'Alumni',
     };
   }
@@ -78,12 +81,24 @@ class AuthService {
    * Connects to backend: POST /api/auth/register
    */
   async register(payload: RegisterPayload): Promise<VerifyTokenResponse> {
+    if (payload.programDurationYears !== undefined && payload.programDurationYears !== 4 && payload.programDurationYears !== 5) {
+      const error: any = new Error('Program duration must be either 4 or 5 years');
+      error.code = 'INVALID_PROGRAM_DURATION';
+      throw error;
+    }
+
+    const effectiveDuration: 4 | 5 = payload.programDurationYears === 5 ? 5 : 4;
+    const requestPayload = {
+      ...payload,
+      programDurationYears: effectiveDuration,
+    };
+
     if (!APP_CONFIG.features.useMockServices) {
       const response = await fetch(`${API_CONFIG.baseUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestPayload),
       });
       if (!response.ok) {
         let errCode = 'REGISTRATION_FAILED';
@@ -127,6 +142,7 @@ class AuthService {
           academicLevel: payload.level,
           subgroup: payload.subgroup?.trim() || 'General Assembly',
           phoneNumber: payload.phoneNumber?.trim() || undefined,
+          programDurationYears: effectiveDuration,
           roles: ['Member'],
           accountStatus: 'Active',
           membershipStatus: payload.level === 'Alumni' ? 'Alumni' : 'Active Student',

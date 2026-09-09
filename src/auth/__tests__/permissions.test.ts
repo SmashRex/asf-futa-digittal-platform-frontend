@@ -50,6 +50,35 @@ describe('Role & Permission Authorization Matrix', () => {
     expect(isAdminRole(multiRoles)).toBe(true);
   });
 
+  it('should strictly grant academic sessions management to General Secretary, Technical Administrator, and President / Executive only', () => {
+    const authorizedRoles: UserRole[] = ['General Secretary', 'Technical Administrator', 'President / Executive'];
+    const nonAuthorizedRoles: UserRole[] = [
+      'Member',
+      'Regular Member',
+      'FS Student',
+      'FS Teacher',
+      'VP / FS Coordinator',
+      'Bible Study Coordinator',
+      'Choir Coordinator',
+      'Publicity Coordinator',
+      'Organizing Coordinator',
+      'Drama Coordinator',
+      'Prayer Coordinator',
+      'Financial Secretary',
+      'Treasurer',
+      'Librarian',
+      'Alumni'
+    ];
+
+    authorizedRoles.forEach((role) => {
+      expect(hasPermission(role, 'manage_academic_sessions')).toBe(true);
+    });
+
+    nonAuthorizedRoles.forEach((role) => {
+      expect(hasPermission(role, 'manage_academic_sessions')).toBe(false);
+    });
+  });
+
   it('should safely return false when role is undefined', () => {
     expect(hasPermission(undefined, 'view_member_content')).toBe(false);
     expect(isAdminRole(undefined)).toBe(false);

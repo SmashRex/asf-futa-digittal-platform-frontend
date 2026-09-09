@@ -65,6 +65,7 @@ export const ALL_PERMISSION_KEYS: PermissionKey[] = [
   'system.logs.view',
   'system.configuration.view',
   'system.configuration.edit',
+  'system.academicSessions.manage',
   'system.technicalAdmin',
   'system.dataBackup'
 ];
@@ -115,6 +116,7 @@ export const OFFICES_REGISTRY: OfficeDefinition[] = [
       'system.logs.view',
       'system.configuration.view',
       'system.configuration.edit',
+      'system.academicSessions.manage',
       'system.technicalAdmin',
       'system.dataBackup',
       'website.view',
@@ -210,6 +212,7 @@ export const OFFICES_REGISTRY: OfficeDefinition[] = [
       'events.create',
       'members.view',
       'governance.view',
+      'system.academicSessions.manage',
     ]
   },
   {

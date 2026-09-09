@@ -58,7 +58,7 @@ export default function CheckEmail() {
         {/* Dynamic target email */}
         <div>
           <p className="text-sm text-[var(--color-text-secondary)]">
-            A magic link was successfully dispatched to:
+            If an account is associated with this email address, a sign-in link has been dispatched to:
           </p>
           <p className="text-base font-semibold text-[var(--color-text-primary)] mt-1.5 break-all">
             {email}

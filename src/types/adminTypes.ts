@@ -49,6 +49,7 @@ export type PermissionKey =
   | 'system.logs.view'
   | 'system.configuration.view'
   | 'system.configuration.edit'
+  | 'system.academicSessions.manage'
   | 'system.technicalAdmin'
   | 'system.dataBackup'
   | 'website.view'

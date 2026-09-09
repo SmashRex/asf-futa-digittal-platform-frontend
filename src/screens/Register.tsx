@@ -23,6 +23,7 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
   const [email, setEmail] = useState('');
   const [department, setDepartment] = useState('');
   const [level, setLevel] = useState('100 Level');
+  const [programDurationYears, setProgramDurationYears] = useState<4 | 5>(4);
 
   // Optional Fellowship Profile Fields
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -64,12 +65,16 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
     setIsLoading(true);
 
     try {
-      // Direct registration call creating an active member account
+      // Determine if level is undergraduate
+      const isUndergraduate = ['100 Level', '200 Level', '300 Level', '400 Level', '500 Level'].includes(level);
+      // Direct registration call creating an active member account (default to 4 for non-undergraduates)
+      const effectiveDuration: 4 | 5 = isUndergraduate ? (Number(programDurationYears) === 5 ? 5 : 4) : 4;
       const response = await authService.register({
         name: trimmedName,
         email: trimmedEmail,
         department: trimmedDept,
         level,
+        programDurationYears: effectiveDuration,
         phoneNumber: phoneNumber.trim() || undefined,
         subgroup: subgroup.trim() || undefined,
       });
@@ -190,10 +195,33 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
                   <option value="300 Level">300 Level</option>
                   <option value="400 Level">400 Level</option>
                   <option value="500 Level">500 Level</option>
+                  <option value="Postgraduate">Postgraduate</option>
                   <option value="Alumni">Alumni</option>
                 </select>
               </div>
             </div>
+
+            {/* Undergraduate Program Duration (4 or 5 years) */}
+            {['100 Level', '200 Level', '300 Level', '400 Level', '500 Level'].includes(level) && (
+              <div className="flex flex-col align-start text-left">
+                <label className="input-label mb-1.5 text-sm font-medium text-[var(--color-text-primary)]" htmlFor="register-duration-input">
+                  Program Duration *
+                </label>
+                <select
+                  id="register-duration-input"
+                  value={programDurationYears}
+                  onChange={(e) => setProgramDurationYears(Number(e.target.value) as 4 | 5)}
+                  className="input-box"
+                  disabled={isLoading}
+                >
+                  <option value={4}>4 years</option>
+                  <option value={5}>5 years</option>
+                </select>
+                <p className="text-[11px] text-[var(--color-text-secondary)] mt-1">
+                  Select the standard duration of your undergraduate programme.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Optional Profile Information Section */}
@@ -223,9 +251,9 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
             {/* Fellowship Subgroup */}
             <Input
               id="register-subgroup-input"
-              label="Fellowship Subgroup (Optional)"
+              label="Subgroup (Optional)"
               type="text"
-              placeholder="e.g. Choir, Technical, Ushering, Prayer"
+              placeholder="e.g. Choir, Publicity, Church Mission, Prayer"
               value={subgroup}
               onChange={(e) => setSubgroup(e.target.value)}
               disabled={isLoading}

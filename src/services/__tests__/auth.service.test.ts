@@ -18,12 +18,13 @@ describe('Auth Service', () => {
     expect(res.message).toContain('Magic login link dispatched');
   });
 
-  it('should register a new member and create an active session', async () => {
+  it('should register a new member and create an active session with valid programDurationYears', async () => {
     const res = await authService.register({
       name: 'John Doe',
       email: 'student@futa.edu.ng',
       department: 'Computer Science',
       level: '400 Level',
+      programDurationYears: 5,
       subgroup: 'Technical Team',
     });
 
@@ -31,7 +32,44 @@ describe('Auth Service', () => {
     expect(res.user.email).toBe('student@futa.edu.ng');
     expect(res.user.name).toBe('John Doe');
     expect(res.user.department).toBe('Computer Science');
+    expect(res.user.programDurationYears).toBe(5);
     expect(authService.getToken()).toBe(res.token);
+  });
+
+  it('should default programDurationYears to 4 if not provided or for alumni', async () => {
+    const res = await authService.register({
+      name: 'Alumni Member',
+      email: 'alumni@futa.edu.ng',
+      department: 'Architecture',
+      level: 'Alumni',
+    });
+
+    expect(typeof res.user.programDurationYears).toBe('number');
+    expect(res.user.programDurationYears).toBe(4);
+  });
+
+  it('should default programDurationYears to 4 for postgraduate registration', async () => {
+    const res = await authService.register({
+      name: 'Postgraduate Member',
+      email: 'pg@futa.edu.ng',
+      department: 'Physics',
+      level: 'Postgraduate',
+    });
+
+    expect(typeof res.user.programDurationYears).toBe('number');
+    expect(res.user.programDurationYears).toBe(4);
+  });
+
+  it('should reject invalid programDurationYears if specified as non 4 or 5', async () => {
+    await expect(
+      authService.register({
+        name: 'Invalid Year',
+        email: 'invalid@futa.edu.ng',
+        department: 'Science',
+        level: '200 Level',
+        programDurationYears: 3 as any,
+      })
+    ).rejects.toThrow('Program duration must be either 4 or 5 years');
   });
 
   it('should verify valid magic link token and persist session token with roles array', async () => {

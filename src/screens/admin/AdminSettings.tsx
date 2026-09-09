@@ -3,10 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { AdminContextType } from './AdminLayout';
 import { ROLE_PERMISSIONS_MATRIX } from '../../data/adminData';
+import { academicSessionsService } from '../../services/academicSessions/academicSessions.service';
+import { AcademicSession } from '../../types/academicSession';
 import { 
   Settings, 
   Shield, 
@@ -23,7 +25,13 @@ import {
   User,
   Sun,
   Moon,
-  Laptop
+  Laptop,
+  Calendar,
+  GraduationCap,
+  Plus,
+  AlertCircle,
+  Loader2,
+  ArrowRight
 } from 'lucide-react';
 
 export const AdminSettings: React.FC = () => {
@@ -31,12 +39,13 @@ export const AdminSettings: React.FC = () => {
 
   // Determine allowed setting tabs based on effective permissions
   const canAccessGeneral = hasPermission('system.configuration.view') || hasPermission('governance.view') || hasPermission('leadership.view');
+  const canAccessAcademicSessions = hasPermission('system.academicSessions.manage') || activeRole === 'President / Executive' || activeRole === 'General Secretary' || activeRole === 'Technical Administrator';
   const canAccessWorkflow = hasPermission('governance.view') || hasPermission('system.configuration.view');
   const canAccessRoles = hasPermission('leadership.view') || hasPermission('governance.view');
   const canAccessDistribution = hasPermission('announcements.view') || hasPermission('bibleStudy.view') || hasPermission('system.configuration.view');
   const canAccessBackup = hasPermission('system.technicalAdmin') || hasPermission('system.configuration.edit') || hasPermission('system.dataBackup');
 
-  type SettingTab = 'Personal' | 'General' | 'Workflow' | 'Roles' | 'Distribution' | 'Backup';
+  type SettingTab = 'Personal' | 'General' | 'AcademicSessions' | 'Workflow' | 'Roles' | 'Distribution' | 'Backup';
 
   const [activeTab, setActiveTab] = useState<SettingTab>('Personal');
   
@@ -52,6 +61,93 @@ export const AdminSettings: React.FC = () => {
   const [themePreference, setThemePreference] = useState<'Light' | 'Dark' | 'System'>('Light');
   const [emailNotifs, setEmailNotifs] = useState(true);
   const [pushNotifs, setPushNotifs] = useState(true);
+
+  // Academic Sessions Management State
+  const [sessions, setSessions] = useState<AcademicSession[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [sessionSuccess, setSessionSuccess] = useState<string | null>(null);
+
+  // Create Session Form State
+  const [newSessionId, setNewSessionId] = useState('');
+  const [newSessionName, setNewSessionName] = useState('');
+  const [newSessionStartDate, setNewSessionStartDate] = useState('');
+  const [newSessionEndDate, setNewSessionEndDate] = useState('');
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+
+  // Progression Confirmation Modal State
+  const [sessionToProgress, setSessionToProgress] = useState<AcademicSession | null>(null);
+  const [isProgressing, setIsProgressing] = useState(false);
+
+  const fetchSessions = async () => {
+    setIsLoadingSessions(true);
+    setSessionError(null);
+    try {
+      const data = await academicSessionsService.getAcademicSessions();
+      setSessions(data);
+    } catch (err: any) {
+      setSessionError(err.message || 'Failed to load academic sessions');
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'AcademicSessions') {
+      fetchSessions();
+    }
+  }, [activeTab]);
+
+  const handleCreateSession = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmedId = newSessionId.trim();
+    if (!trimmedId) {
+      setSessionError('Please provide a session ID (e.g. 2027/2028)');
+      return;
+    }
+
+    setIsCreatingSession(true);
+    setSessionError(null);
+    setSessionSuccess(null);
+
+    try {
+      const created = await academicSessionsService.createAcademicSession({
+        id: trimmedId,
+        name: newSessionName.trim() || undefined,
+        startDate: newSessionStartDate || undefined,
+        endDate: newSessionEndDate || undefined,
+      });
+      setSessionSuccess(`Academic session "${created.id}" created successfully.`);
+      setNewSessionId('');
+      setNewSessionName('');
+      setNewSessionStartDate('');
+      setNewSessionEndDate('');
+      await fetchSessions();
+    } catch (err: any) {
+      setSessionError(err.message || 'Failed to create academic session');
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
+
+  const handleExecuteProgression = async () => {
+    if (!sessionToProgress) return;
+
+    setIsProgressing(true);
+    setSessionError(null);
+    setSessionSuccess(null);
+
+    try {
+      const result = await academicSessionsService.activateAndProgress(sessionToProgress.id);
+      setSessionSuccess(result.message || `Session ${sessionToProgress.id} activated and student progression completed successfully.`);
+      setSessionToProgress(null);
+      await fetchSessions();
+    } catch (err: any) {
+      setSessionError(err.message || 'Failed to execute academic progression');
+    } finally {
+      setIsProgressing(false);
+    }
+  };
 
   const handleSaveSettings = () => {
     setSavedSuccess(true);
@@ -131,6 +227,19 @@ export const AdminSettings: React.FC = () => {
             }`}
           >
             General Platform
+          </button>
+        )}
+
+        {canAccessAcademicSessions && (
+          <button
+            onClick={() => setActiveTab('AcademicSessions')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+              activeTab === 'AcademicSessions'
+                ? 'bg-[#5B0617] text-white shadow-xs'
+                : 'text-[#52525B] hover:text-[#18181B] hover:bg-[#FAF8F5]'
+            }`}
+          >
+            Academic Sessions & Progression
           </button>
         )}
 
@@ -251,6 +360,280 @@ export const AdminSettings: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB: ACADEMIC SESSIONS & PROGRESSION */}
+      {activeTab === 'AcademicSessions' && (
+        canAccessAcademicSessions ? (
+          <div className="space-y-6">
+            {/* Feedback Banners */}
+            {sessionSuccess && (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-medium flex items-center justify-between gap-2 animate-in fade-in" id="academic-session-success-banner">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{sessionSuccess}</span>
+                </div>
+                <button onClick={() => setSessionSuccess(null)} className="text-emerald-700 hover:text-emerald-900 text-xs">Dismiss</button>
+              </div>
+            )}
+
+            {sessionError && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-medium flex items-center justify-between gap-2 animate-in fade-in" id="academic-session-error-banner">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{sessionError}</span>
+                </div>
+                <button onClick={() => setSessionError(null)} className="text-rose-700 hover:text-rose-900 text-xs">Dismiss</button>
+              </div>
+            )}
+
+            {/* Create Academic Session Form */}
+            <div className="bg-white rounded-2xl border border-[#E4E4E7] p-5 sm:p-6 shadow-sm space-y-4">
+              <h2 className="font-serif font-bold text-base text-[#18181B] border-b border-[#E4E4E7] pb-3 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[#5B0617]" />
+                <span>Create New Academic Session</span>
+              </h2>
+
+              <form onSubmit={handleCreateSession} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1 text-xs">
+                    <label className="font-semibold text-[#18181B]" htmlFor="session-id-input">
+                      Session Identifier (Format: YYYY/YYYY) *
+                    </label>
+                    <input
+                      id="session-id-input"
+                      type="text"
+                      placeholder="e.g. 2027/2028"
+                      value={newSessionId}
+                      onChange={(e) => setNewSessionId(e.target.value)}
+                      disabled={isCreatingSession}
+                      className="w-full p-2.5 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] text-xs font-medium text-[#18181B]"
+                      required
+                    />
+                    <p className="text-[11px] text-[#71717A]">Session IDs containing slashes (e.g. 2027/2028) are fully supported.</p>
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <label className="font-semibold text-[#18181B]" htmlFor="session-name-input">
+                      Session Display Name (Optional)
+                    </label>
+                    <input
+                      id="session-name-input"
+                      type="text"
+                      placeholder="e.g. 2027/2028 Academic Session"
+                      value={newSessionName}
+                      onChange={(e) => setNewSessionName(e.target.value)}
+                      disabled={isCreatingSession}
+                      className="w-full p-2.5 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] text-xs font-medium text-[#18181B]"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <label className="font-semibold text-[#18181B]" htmlFor="session-start-date">
+                      Session Start Date (Optional)
+                    </label>
+                    <input
+                      id="session-start-date"
+                      type="date"
+                      value={newSessionStartDate}
+                      onChange={(e) => setNewSessionStartDate(e.target.value)}
+                      disabled={isCreatingSession}
+                      className="w-full p-2.5 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] text-xs font-medium text-[#18181B]"
+                    />
+                  </div>
+
+                  <div className="space-y-1 text-xs">
+                    <label className="font-semibold text-[#18181B]" htmlFor="session-end-date">
+                      Session End Date (Optional)
+                    </label>
+                    <input
+                      id="session-end-date"
+                      type="date"
+                      value={newSessionEndDate}
+                      onChange={(e) => setNewSessionEndDate(e.target.value)}
+                      disabled={isCreatingSession}
+                      className="w-full p-2.5 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] text-xs font-medium text-[#18181B]"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isCreatingSession || !newSessionId.trim()}
+                  className="px-4 py-2.5 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-semibold flex items-center gap-2 shadow-sm transition-all disabled:opacity-50"
+                  id="create-session-submit-btn"
+                >
+                  {isCreatingSession ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Creating Session...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Create Session</span>
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+
+            {/* Academic Sessions Registry */}
+            <div className="bg-white rounded-2xl border border-[#E4E4E7] p-5 sm:p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
+                <h2 className="font-serif font-bold text-base text-[#18181B] flex items-center gap-2">
+                  <GraduationCap className="w-4 h-4 text-[#5B0617]" />
+                  <span>Academic Sessions & Progression History</span>
+                </h2>
+                <button
+                  onClick={fetchSessions}
+                  disabled={isLoadingSessions}
+                  className="text-xs text-[#5B0617] hover:underline font-medium"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {isLoadingSessions ? (
+                <div className="py-8 text-center text-xs text-[#71717A] flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-[#5B0617]" />
+                  <span>Loading academic sessions...</span>
+                </div>
+              ) : sessions.length === 0 ? (
+                <div className="py-8 text-center text-xs text-[#71717A]">
+                  No academic sessions registered yet. Use the form above to initialize the next session.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {sessions.map((sess) => (
+                    <div
+                      key={sess.id}
+                      className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                        sess.status === 'active'
+                          ? 'border-emerald-300 bg-emerald-50/50'
+                          : sess.status === 'archived'
+                          ? 'border-[#E4E4E7] bg-[#FAF8F5]'
+                          : 'border-[#E4E4E7] bg-white'
+                      }`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-[#18181B]">{sess.id}</span>
+                          {sess.name && <span className="text-xs text-[#71717A]">({sess.name})</span>}
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                              sess.status === 'active'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : sess.status === 'archived'
+                                ? 'bg-stone-100 text-stone-600'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {sess.status}
+                          </span>
+                        </div>
+                        {(sess.startDate || sess.endDate) && (
+                          <p className="text-[11px] text-[#71717A]">
+                            Period: {sess.startDate || 'N/A'} &mdash; {sess.endDate || 'N/A'}
+                          </p>
+                        )}
+                        {sess.progressionCompletedAt && (
+                          <p className="text-[11px] text-emerald-700">
+                            Student progression executed at: {new Date(sess.progressionCompletedAt).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {sess.status !== 'active' ? (
+                          <button
+                            onClick={() => setSessionToProgress(sess)}
+                            className="px-3.5 py-1.5 rounded-lg bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-xs"
+                          >
+                            <span>Activate &amp; Progress</span>
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1 px-2.5 py-1 bg-emerald-100 rounded-md">
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Current Active Session</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Progression Confirmation Modal */}
+            {sessionToProgress && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in" id="progression-confirm-modal">
+                <div className="bg-white rounded-2xl border border-[#E4E4E7] shadow-xl max-w-md w-full p-6 space-y-4">
+                  <div className="flex items-center gap-3 text-amber-800">
+                    <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
+                      <GraduationCap className="w-5 h-5 text-amber-800" />
+                    </div>
+                    <div>
+                      <h3 className="font-serif font-bold text-base text-[#18181B]">
+                        Activate Session &amp; Progress Students
+                      </h3>
+                      <p className="text-xs text-[#71717A]">Target Session: {sessionToProgress.id}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#E4E4E7] text-xs text-[#52525B] space-y-2 leading-relaxed">
+                    <p className="font-semibold text-[#18181B]">This action will perform the following operations:</p>
+                    <ul className="list-disc list-inside space-y-1">
+                      <li>Set <span className="font-bold">{sessionToProgress.id}</span> as the current active academic session.</li>
+                      <li>Advance all active undergraduate students to their next academic level (100L &rarr; 200L, 200L &rarr; 300L, etc.).</li>
+                      <li>Transition final-year students (400L for 4-yr courses, 500L for 5-yr courses) to <span className="font-bold">Alumni</span> status.</li>
+                      <li>Record an immutable governance progression log.</li>
+                    </ul>
+                    <p className="text-amber-800 font-medium pt-1">Note: This action cannot be undone once confirmed.</p>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#E4E4E7]">
+                    <button
+                      type="button"
+                      onClick={() => setSessionToProgress(null)}
+                      disabled={isProgressing}
+                      className="px-4 py-2 rounded-xl border border-[#E4E4E7] text-xs font-semibold text-[#52525B] hover:bg-[#FAF8F5]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExecuteProgression}
+                      disabled={isProgressing}
+                      className="px-4 py-2 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-semibold flex items-center gap-1.5 transition-all"
+                      id="confirm-progress-btn"
+                    >
+                      {isProgressing ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          <span>Progressing Students...</span>
+                        </>
+                      ) : (
+                        <span>Confirm &amp; Progress</span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="bg-rose-50 border border-rose-200 p-6 rounded-2xl space-y-2 text-rose-900">
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <Lock className="w-4 h-4 text-rose-600" />
+              <span>Access Restricted: Academic Sessions Management</span>
+            </div>
+            <p className="text-xs text-rose-800">
+              Managing academic sessions and advancing student cohorts requires Executive, Secretariat, or Technical Administration privileges. Your active role ({activeRole}) does not have permission for this operation.
+            </p>
+          </div>
+        )
       )}
 
       {/* TAB 1: GENERAL PLATFORM */}

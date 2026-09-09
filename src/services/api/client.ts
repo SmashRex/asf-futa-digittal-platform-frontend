@@ -28,7 +28,11 @@ export class ApiClient {
   }
 
   private async handleErrorResponse(response: Response): Promise<never> {
-    let errorCode = 'HTTP_ERROR';
+    let errorCode = response.status === 401 
+      ? 'UNAUTHENTICATED' 
+      : response.status === 403 
+      ? 'PERMISSION_DENIED' 
+      : 'HTTP_ERROR';
     let errorMessage = `API Error ${response.status}: ${response.statusText}`;
     let errorDetails: unknown = undefined;
 
@@ -71,9 +75,19 @@ export class ApiClient {
     return result;
   }
 
+  private normalizeUrl(path: string): string {
+    const cleanPath = path.startsWith('/api/') 
+      ? path.replace(/^\/api/, '') 
+      : path.startsWith('/api') 
+      ? path.replace(/^\/api/, '') 
+      : path;
+    const formatted = cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`;
+    return `${this.baseUrl}${formatted}`;
+  }
+
   async get<T>(path: string): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
+      const response = await fetch(this.normalizeUrl(path), {
         method: 'GET',
         headers: this.getHeaders(),
         credentials: 'include',
@@ -91,13 +105,13 @@ export class ApiClient {
     }
   }
 
-  async post<T>(path: string, body: any): Promise<ApiResponse<T>> {
+  async post<T>(path: string, body?: any): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
+      const response = await fetch(this.normalizeUrl(path), {
         method: 'POST',
         headers: this.getHeaders(),
         credentials: 'include',
-        body: JSON.stringify(body),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
       });
       return await this.processResponse<T>(response);
     } catch (err: any) {
@@ -114,7 +128,7 @@ export class ApiClient {
 
   async put<T>(path: string, body: any): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
+      const response = await fetch(this.normalizeUrl(path), {
         method: 'PUT',
         headers: this.getHeaders(),
         credentials: 'include',
