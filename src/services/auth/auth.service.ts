@@ -35,7 +35,12 @@ export interface VerifyTokenResponse {
 }
 
 class AuthService {
-  private normalizeUser(rawUser: any): UserProfile {
+  /**
+   * Normalizes backend / cached user payload to authoritative UserProfile shape.
+   * Validates against authoritative auth contract: id, email, name, department, academicLevel, roles (array).
+   * Note: membershipStatus and accountStatus are optional in auth contract and derived safely if absent.
+   */
+  normalizeUser(rawUser: any): UserProfile {
     if (!APP_CONFIG.features.useMockServices) {
       const missing: string[] = [];
       if (!rawUser?.id) missing.push('id');
@@ -44,8 +49,6 @@ class AuthService {
       if (!rawUser?.department) missing.push('department');
       if (!rawUser?.academicLevel && !rawUser?.level) missing.push('academicLevel');
       if (!rawUser?.roles || !Array.isArray(rawUser.roles)) missing.push('roles (array)');
-      if (!rawUser?.accountStatus) missing.push('accountStatus');
-      if (!rawUser?.membershipStatus) missing.push('membershipStatus');
 
       if (missing.length > 0) {
         const error: any = new Error(`Contract violation: Backend response is missing required fields: ${missing.join(', ')}`);
@@ -462,7 +465,11 @@ class AuthService {
         if (response.status === 403) {
           return this.getCurrentUser();
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.code === 'INVALID_USER_CONTRACT' || (e instanceof Error && e.message.startsWith('Contract violation'))) {
+          console.error('[AuthService] Contract violation on /api/auth/me response:', e);
+          throw e;
+        }
         console.warn('Unable to reach backend /api/auth/me; falling back to cached session', e);
       }
     }
@@ -487,7 +494,11 @@ class AuthService {
           localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(user));
           return user;
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.code === 'INVALID_USER_CONTRACT' || (e instanceof Error && e.message.startsWith('Contract violation'))) {
+          console.error('[AuthService] Contract violation on /api/users/profile response:', e);
+          throw e;
+        }
         console.warn('Unable to reach backend /api/users/profile; falling back to cached session', e);
       }
     }

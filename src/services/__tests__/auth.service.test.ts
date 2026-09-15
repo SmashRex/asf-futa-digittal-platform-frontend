@@ -3,13 +3,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { authService } from '../auth/auth.service';
+import { APP_CONFIG } from '../../config/app.config';
 
 describe('Auth Service', () => {
+  const originalUseMock = APP_CONFIG.features.useMockServices;
+
   beforeEach(() => {
     localStorage.clear();
     vi.restoreAllMocks();
+    APP_CONFIG.features.useMockServices = originalUseMock;
+  });
+
+  afterEach(() => {
+    APP_CONFIG.features.useMockServices = originalUseMock;
   });
 
   it('should dispatch magic link request successfully', async () => {
@@ -117,5 +125,168 @@ describe('Auth Service', () => {
     await authService.logout();
     expect(authService.getToken()).toBeNull();
     expect(await authService.getCurrentUser()).toBeNull();
+  });
+
+  describe('normalizeUser - Authoritative Auth Contract', () => {
+    beforeEach(() => {
+      APP_CONFIG.features.useMockServices = false;
+    });
+
+    it('should successfully normalize a valid backend auth user without membershipStatus or accountStatus', () => {
+      const backendUser = {
+        id: 'usr_backend_123',
+        email: 'test@example.com',
+        name: 'Test User',
+        department: 'Computer Science',
+        academicLevel: '100 Level',
+        subgroup: 'Technical Team',
+        roles: ['Member'],
+      };
+
+      const normalized = authService.normalizeUser(backendUser);
+
+      expect(normalized.id).toBe('usr_backend_123');
+      expect(normalized.email).toBe('test@example.com');
+      expect(normalized.name).toBe('Test User');
+      expect(normalized.department).toBe('Computer Science');
+      expect(normalized.academicLevel).toBe('100 Level');
+      expect(normalized.subgroup).toBe('Technical Team');
+      expect(Array.isArray(normalized.roles)).toBe(true);
+      expect(normalized.roles).toEqual(['Member']);
+      // Fallback derivation for UI compatibility
+      expect(normalized.membershipStatus).toBe('Active Student');
+      expect(normalized.accountStatus).toBe('Active');
+    });
+
+    it('should accept empty roles array and preserve it as an array', () => {
+      const backendUser = {
+        id: 'usr_backend_456',
+        email: 'noroles@example.com',
+        name: 'No Roles User',
+        department: 'Physics',
+        academicLevel: '200 Level',
+        subgroup: 'Choir',
+        roles: [],
+      };
+
+      const normalized = authService.normalizeUser(backendUser);
+      expect(Array.isArray(normalized.roles)).toBe(true);
+    });
+
+    it('should reject rawUser missing required id field with INVALID_USER_CONTRACT', () => {
+      const invalidUser = {
+        email: 'test@example.com',
+        name: 'Test User',
+        department: 'Computer Science',
+        academicLevel: '100 Level',
+        roles: ['Member'],
+      };
+
+      expect(() => authService.normalizeUser(invalidUser)).toThrowError(
+        /Contract violation: Backend response is missing required fields: id/
+      );
+    });
+
+    it('should reject rawUser missing required department field with INVALID_USER_CONTRACT', () => {
+      const invalidUser = {
+        id: 'usr_1',
+        email: 'test@example.com',
+        name: 'Test User',
+        academicLevel: '100 Level',
+        roles: ['Member'],
+      };
+
+      expect(() => authService.normalizeUser(invalidUser)).toThrowError(
+        /Contract violation: Backend response is missing required fields: department/
+      );
+    });
+
+    it('should reject rawUser when roles is not an array with INVALID_USER_CONTRACT', () => {
+      const invalidUser = {
+        id: 'usr_1',
+        email: 'test@example.com',
+        name: 'Test User',
+        department: 'Computer Science',
+        academicLevel: '100 Level',
+        roles: 'invalid_string' as any,
+      };
+
+      expect(() => authService.normalizeUser(invalidUser)).toThrowError(
+        /Contract violation: Backend response is missing required fields: roles \(array\)/
+      );
+    });
+
+    it('should not require membershipStatus or accountStatus to pass normalization', () => {
+      const minimalAuthoritativeUser = {
+        id: 'usr_minimal',
+        email: 'minimal@futa.edu.ng',
+        name: 'Minimal User',
+        department: 'Architecture',
+        academicLevel: '500 Level',
+        roles: ['Member'],
+      };
+
+      expect(() => authService.normalizeUser(minimalAuthoritativeUser)).not.toThrow();
+    });
+
+    it('should derive membershipStatus as Alumni when academicLevel is Alumni and default accountStatus to Active', () => {
+      const alumniUser = {
+        id: 'usr_alumni',
+        email: 'alumni@futa.edu.ng',
+        name: 'Alumni Member',
+        department: 'Agricultural Engineering',
+        academicLevel: 'Alumni',
+        roles: ['Member'],
+      };
+
+      const normalized = authService.normalizeUser(alumniUser);
+      expect(normalized.membershipStatus).toBe('Alumni');
+      expect(normalized.isAlumni).toBe(true);
+      expect(normalized.accountStatus).toBe('Active');
+    });
+
+    it('should derive membershipStatus as Active Student when academicLevel is undergraduate level', () => {
+      const studentUser = {
+        id: 'usr_student',
+        email: 'student@futa.edu.ng',
+        name: 'Active Student Member',
+        department: 'Electrical Engineering',
+        academicLevel: '300 Level',
+        roles: ['Member'],
+      };
+
+      const normalized = authService.normalizeUser(studentUser);
+      expect(normalized.membershipStatus).toBe('Active Student');
+      expect(normalized.isAlumni).toBe(false);
+      expect(normalized.accountStatus).toBe('Active');
+    });
+
+    it('should successfully resolve getMe() from backend without membershipStatus or accountStatus', async () => {
+      const liveBackendResponse = {
+        status: 'success',
+        data: {
+          id: 'usr_live_999',
+          email: 'live@futa.edu.ng',
+          name: 'Live Staging User',
+          department: 'Computer Science',
+          academicLevel: '400 Level',
+          subgroup: 'Media & Publicity',
+          roles: ['Member'],
+        },
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => liveBackendResponse,
+      } as Response);
+
+      const user = await authService.getMe();
+      expect(user).not.toBeNull();
+      expect(user?.id).toBe('usr_live_999');
+      expect(user?.membershipStatus).toBe('Active Student');
+      expect(user?.accountStatus).toBe('Active');
+      expect(user?.roles).toEqual(['Member']);
+    });
   });
 });
