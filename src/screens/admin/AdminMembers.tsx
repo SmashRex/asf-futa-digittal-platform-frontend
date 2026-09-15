@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { AdminContextType } from './AdminLayout';
 import { AdminMember } from '../../types/adminTypes';
 import { UserRole } from '../../types';
+import { membersService } from '../../services/members/members.service';
 import { 
   Users, 
   Search, 
@@ -23,7 +24,13 @@ import {
   UserX,
   RefreshCw,
   Building2,
-  Layers
+  Layers,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  KeyRound
 } from 'lucide-react';
 
 const ACADEMIC_LEVELS = [
@@ -33,6 +40,7 @@ const ACADEMIC_LEVELS = [
   '300 Level',
   '400 Level',
   '500 Level',
+  'Postgraduate',
   'Alumni'
 ];
 
@@ -63,7 +71,7 @@ const ROLE_FILTERS: (UserRole | 'All Roles')[] = [
 ];
 
 export const AdminMembers: React.FC = () => {
-  const { members, updateMemberRole, toggleMemberStatus, activeRole } = useOutletContext<AdminContextType>();
+  const { members, updateMemberRole, updateMemberLevel, toggleMemberStatus, activeRole, activeMember, userRoles } = useOutletContext<AdminContextType>();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>('All Academic Levels');
@@ -71,10 +79,65 @@ export const AdminMembers: React.FC = () => {
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('All Roles');
   const [selectedMember, setSelectedMember] = useState<AdminMember | null>(null);
   const [toastMsg, setToastMsg] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 15;
+
+  const [overrideLevel, setOverrideLevel] = useState<string>('');
+  const [overrideReason, setOverrideReason] = useState<string>('');
+  const [overrideReasonError, setOverrideReasonError] = useState<string>('');
+  const [isSubmittingOverride, setIsSubmittingOverride] = useState(false);
+
+  const [newPassword, setNewPassword] = useState('');
+  const [resetPasswordError, setResetPasswordError] = useState('');
+  const [resetPasswordSuccess, setResetPasswordSuccess] = useState('');
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [showResetPassword, setShowResetPassword] = useState(false);
+
+  useEffect(() => {
+    if (selectedMember) {
+      setOverrideLevel(selectedMember.level);
+      setOverrideReason('');
+      setOverrideReasonError('');
+      setNewPassword('');
+      setResetPasswordError('');
+      setResetPasswordSuccess('');
+      setShowResetPassword(false);
+    }
+  }, [selectedMember?.id]);
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(''), 3000);
+    setTimeout(() => setToastMsg(''), 3500);
+  };
+
+  // Authorized roles for academic level override per contract:
+  // Technical Administrator, General Secretary, President / Executive
+  const authorizedOverrideRoles = ['Technical Administrator', 'General Secretary', 'President / Executive'];
+  const canOverrideLevel = Boolean(
+    authorizedOverrideRoles.includes(activeRole) ||
+    (userRoles && userRoles.some(r => authorizedOverrideRoles.includes(r)))
+  );
+
+  // Authorized roles for admin password reset per contract:
+  // Technical Administrator, President / Executive
+  const authorizedResetPasswordRoles = ['Technical Administrator', 'President / Executive'];
+  const canResetPassword = Boolean(
+    authorizedResetPasswordRoles.includes(activeRole) ||
+    (userRoles && userRoles.some(r => authorizedResetPasswordRoles.includes(r)))
+  );
+
+  const handleSelectMember = async (member: AdminMember) => {
+    setSelectedMember(member);
+    setNewPassword('');
+    setResetPasswordError('');
+    setResetPasswordSuccess('');
+    setShowResetPassword(false);
+    try {
+      const detailed = await membersService.getMemberById(member.id);
+      setSelectedMember(prev => prev && prev.id === member.id ? detailed : prev);
+    } catch (err) {
+      console.warn('Could not fetch detailed member from GET /api/members/:id:', err);
+    }
   };
 
   const filteredMembers = members.filter(m => {
@@ -92,20 +155,99 @@ export const AdminMembers: React.FC = () => {
     return matchesLevel && matchesSubgroup && matchesRole && matchesSearch;
   });
 
-  const handleRoleUpdate = (memberId: string, newRole: UserRole) => {
-    updateMemberRole(memberId, newRole);
-    if (selectedMember && selectedMember.id === memberId) {
-      setSelectedMember(prev => prev ? { ...prev, role: newRole } : null);
+  const totalPages = Math.ceil(filteredMembers.length / pageSize) || 1;
+  const paginatedMembers = filteredMembers.slice((page - 1) * pageSize, page * pageSize);
+
+  const handleRoleUpdate = async (memberId: string, newRole: UserRole) => {
+    try {
+      await membersService.updateRole(memberId, 'assign', newRole);
+      updateMemberRole(memberId, newRole);
+      if (selectedMember && selectedMember.id === memberId) {
+        setSelectedMember(prev => prev ? { ...prev, role: newRole } : null);
+      }
+      triggerToast(`Updated role for ${selectedMember?.name || 'member'} to ${newRole}`);
+    } catch (err: any) {
+      triggerToast(err.message || 'Failed to update role');
     }
-    triggerToast(`Updated role for ${selectedMember?.name || 'member'} to ${newRole}`);
   };
 
-  const handleStatusToggle = (memberId: string) => {
-    toggleMemberStatus(memberId);
-    if (selectedMember && selectedMember.id === memberId) {
-      setSelectedMember(prev => prev ? { ...prev, status: prev.status === 'Active' ? 'Suspended' : 'Active' } : null);
+  const handleLevelOverride = async (memberId: string) => {
+    const levelToSet = overrideLevel || selectedMember?.level || '100 Level';
+    const trimmedReason = overrideReason.trim();
+
+    if (trimmedReason.length < 5) {
+      setOverrideReasonError('Please provide a reason of at least 5 characters.');
+      return;
     }
-    triggerToast(`Toggled member status`);
+
+    setOverrideReasonError('');
+    setIsSubmittingOverride(true);
+    try {
+      await membersService.overrideAcademicLevel(memberId, levelToSet, trimmedReason);
+      updateMemberLevel(memberId, levelToSet);
+      if (selectedMember && selectedMember.id === memberId) {
+        setSelectedMember(prev => prev ? { ...prev, level: levelToSet } : null);
+      }
+      setOverrideReason('');
+      triggerToast(`Academic level for ${selectedMember?.name || 'member'} updated to ${levelToSet}`);
+    } catch (err: any) {
+      const msg = err.message || 'Failed to override academic level';
+      setOverrideReasonError(msg);
+      triggerToast(msg);
+    } finally {
+      setIsSubmittingOverride(false);
+    }
+  };
+
+  const isSelfSelected = Boolean(
+    activeMember && selectedMember && (
+      (activeMember.id && selectedMember.id && activeMember.id === selectedMember.id) ||
+      (activeMember.email && selectedMember.email && activeMember.email.toLowerCase() === selectedMember.email.toLowerCase())
+    )
+  );
+
+  const handleStatusToggle = async (memberId: string) => {
+    if (isSelfSelected) {
+      triggerToast('You cannot modify your own account status.');
+      return;
+    }
+    const nextStatus = selectedMember?.status === 'Active' ? 'Inactive' : 'Active';
+    try {
+      await membersService.updateStatus(memberId, nextStatus);
+      toggleMemberStatus(memberId);
+      if (selectedMember && selectedMember.id === memberId) {
+        setSelectedMember(prev => prev ? { ...prev, status: nextStatus === 'Active' ? 'Active' : 'Suspended' } : null);
+      }
+      triggerToast(`Member account ${nextStatus === 'Active' ? 'reactivated' : 'deactivated'}`);
+    } catch (err: any) {
+      if (err.code === 'CANNOT_SELF_MODIFY' || err.message?.includes('CANNOT_SELF_MODIFY')) {
+        triggerToast('You cannot modify your own account status.');
+      } else {
+        triggerToast(err.message || 'Failed to update account status');
+      }
+    }
+  };
+
+  const handleResetPasswordSubmit = async () => {
+    if (!selectedMember) return;
+    setResetPasswordError('');
+    setResetPasswordSuccess('');
+    const trimmed = newPassword.trim();
+    if (trimmed.length < 8) {
+      setResetPasswordError('Password must be at least 8 characters long.');
+      return;
+    }
+    setIsResettingPassword(true);
+    try {
+      await membersService.resetPassword(selectedMember.id, trimmed);
+      setResetPasswordSuccess(`Password successfully reset for ${selectedMember.name}`);
+      setNewPassword('');
+      triggerToast(`Password reset for ${selectedMember.name}`);
+    } catch (err: any) {
+      setResetPasswordError(err.message || 'Failed to reset password');
+    } finally {
+      setIsResettingPassword(false);
+    }
   };
 
   return (
@@ -221,14 +363,14 @@ export const AdminMembers: React.FC = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-[#E4E4E7] text-xs">
-            {filteredMembers.length === 0 ? (
+            {paginatedMembers.length === 0 ? (
               <tr>
                 <td colSpan={6} className="p-8 text-center text-xs text-[#52525B]">
                   No fellowship members match the active search and filter criteria.
                 </td>
               </tr>
             ) : (
-              filteredMembers.map((member) => (
+              paginatedMembers.map((member) => (
                 <tr key={member.id} className="hover:bg-[#FAF8F5]/60 transition-colors">
                   <td className="p-3.5 pl-5">
                     <div className="flex items-center gap-3">
@@ -269,8 +411,8 @@ export const AdminMembers: React.FC = () => {
 
                   <td className="p-3.5 text-right pr-5">
                     <button
-                      onClick={() => setSelectedMember(member)}
-                      className="px-3 py-1.5 rounded-lg bg-[#FAF8F5] hover:bg-[#F3EFEA] border border-[#E4E4E7] font-semibold text-xs text-[#18181B]"
+                      onClick={() => handleSelectMember(member)}
+                      className="px-3 py-1.5 rounded-lg bg-[#FAF8F5] hover:bg-[#F3EFEA] border border-[#E4E4E7] font-semibold text-xs text-[#18181B] cursor-pointer"
                     >
                       Manage
                     </button>
@@ -284,12 +426,12 @@ export const AdminMembers: React.FC = () => {
 
       {/* Mobile Stacked Member Cards */}
       <div className="lg:hidden space-y-3">
-        {filteredMembers.length === 0 ? (
+        {paginatedMembers.length === 0 ? (
           <div className="bg-white rounded-2xl border border-[#E4E4E7] p-8 text-center text-xs text-[#52525B]">
             No fellowship members match the active search and filter criteria.
           </div>
         ) : (
-          filteredMembers.map((member) => (
+          paginatedMembers.map((member) => (
             <div key={member.id} className="bg-white rounded-2xl border border-[#E4E4E7] p-4 shadow-xs space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-[#5B0617] text-white flex items-center justify-center font-bold text-xs uppercase shrink-0">
@@ -313,8 +455,8 @@ export const AdminMembers: React.FC = () => {
               </div>
 
               <button
-                onClick={() => setSelectedMember(member)}
-                className="w-full py-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] font-semibold text-xs text-[#18181B]"
+                onClick={() => handleSelectMember(member)}
+                className="w-full py-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] font-semibold text-xs text-[#18181B] cursor-pointer"
               >
                 Inspect & Manage Member
               </button>
@@ -322,6 +464,34 @@ export const AdminMembers: React.FC = () => {
           ))
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {filteredMembers.length > pageSize && (
+        <div className="flex items-center justify-between bg-white px-4 py-3 rounded-2xl border border-[#E4E4E7] text-xs">
+          <p className="text-[#52525B]">
+            Showing <strong className="text-[#18181B]">{(page - 1) * pageSize + 1}</strong> to <strong className="text-[#18181B]">{Math.min(page * pageSize, filteredMembers.length)}</strong> of <strong className="text-[#18181B]">{filteredMembers.length}</strong> members
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="p-2 rounded-xl border border-[#E4E4E7] bg-[#FAF8F5] hover:bg-[#F3EFEA] disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Previous Page"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-xs font-semibold px-2">Page {page} of {totalPages}</span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 rounded-xl border border-[#E4E4E7] bg-[#FAF8F5] hover:bg-[#F3EFEA] disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Next Page"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Member Inspection & Management Modal */}
       {selectedMember && (
@@ -372,7 +542,7 @@ export const AdminMembers: React.FC = () => {
               </div>
             </div>
 
-            {/* Role & Status Controls */}
+            {/* Role, Academic Level & Status Controls */}
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-[#18181B] mb-1">Assign Fellowship Role</label>
@@ -394,12 +564,160 @@ export const AdminMembers: React.FC = () => {
                 </select>
               </div>
 
+              {/* Academic Level Override (Authorized officers only) */}
+              {canOverrideLevel && (
+                <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#E4E4E7] space-y-3" id="academic-level-override-section">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-[#18181B]">
+                      Override Academic Level
+                    </label>
+                    <span className="text-[10px] text-[#5B0617] font-semibold">General Sec / Tech Admin / President</span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">
+                        New Academic Level
+                      </label>
+                      <select
+                        value={overrideLevel || selectedMember.level}
+                        onChange={(e) => {
+                          setOverrideLevel(e.target.value);
+                          if (overrideReasonError) setOverrideReasonError('');
+                        }}
+                        className="w-full p-2 rounded-lg bg-white border border-[#E4E4E7] text-xs font-medium text-[#18181B] focus:outline-none focus:border-[#5B0617]"
+                        id="override-new-level-select"
+                      >
+                        <option value="100 Level">100 Level</option>
+                        <option value="200 Level">200 Level</option>
+                        <option value="300 Level">300 Level</option>
+                        <option value="400 Level">400 Level</option>
+                        <option value="500 Level">500 Level</option>
+                        <option value="Postgraduate">Postgraduate</option>
+                        <option value="Alumni">Alumni</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">
+                        Override Reason <span className="text-rose-600 font-bold">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={overrideReason}
+                        onChange={(e) => {
+                          setOverrideReason(e.target.value);
+                          if (overrideReasonError && e.target.value.trim().length >= 5) {
+                            setOverrideReasonError('');
+                          }
+                        }}
+                        placeholder="e.g. Correcting academic progression"
+                        className={`w-full p-2 rounded-lg bg-white border text-xs text-[#18181B] focus:outline-none ${
+                          overrideReasonError ? 'border-rose-400 focus:border-rose-500' : 'border-[#E4E4E7] focus:border-[#5B0617]'
+                        }`}
+                        id="override-reason-input"
+                      />
+                      {overrideReasonError && (
+                        <p className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1" id="override-reason-error">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{overrideReasonError}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isSubmittingOverride}
+                      onClick={() => handleLevelOverride(selectedMember.id)}
+                      className="w-full py-2 rounded-lg bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                      id="submit-level-override-btn"
+                    >
+                      {isSubmittingOverride ? 'Submitting Override...' : 'Apply Level Override'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Admin Password Reset (Technical Administrator & President / Executive only) */}
+              {canResetPassword && (
+                <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#E4E4E7] space-y-3" id="admin-password-reset-section">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-[#18181B] flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5 text-[#5B0617]" />
+                      <span>Reset Member Password</span>
+                    </label>
+                    <span className="text-[10px] text-[#5B0617] font-semibold">Tech Admin / President</span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">
+                        New Password <span className="text-rose-600 font-bold">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showResetPassword ? 'text' : 'password'}
+                          value={newPassword}
+                          onChange={(e) => {
+                            setNewPassword(e.target.value);
+                            if (resetPasswordError && e.target.value.length >= 8) {
+                              setResetPasswordError('');
+                            }
+                            if (resetPasswordSuccess) setResetPasswordSuccess('');
+                          }}
+                          placeholder="Min. 8 characters"
+                          className={`w-full p-2 pr-9 rounded-lg bg-white border text-xs text-[#18181B] focus:outline-none ${
+                            resetPasswordError ? 'border-rose-400 focus:border-rose-500' : 'border-[#E4E4E7] focus:border-[#5B0617]'
+                          }`}
+                          id="admin-reset-new-password-input"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowResetPassword(!showResetPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600 cursor-pointer"
+                          aria-label={showResetPassword ? "Hide password" : "Show password"}
+                          id="toggle-reset-password-visibility-btn"
+                        >
+                          {showResetPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5 text-stone-400" />}
+                        </button>
+                      </div>
+                      {resetPasswordError && (
+                        <p className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1" id="admin-reset-password-error">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{resetPasswordError}</span>
+                        </p>
+                      )}
+                      {resetPasswordSuccess && (
+                        <p className="text-[11px] text-emerald-700 font-medium mt-1 flex items-center gap-1" id="admin-reset-password-success">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                          <span>{resetPasswordSuccess}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isResettingPassword || !newPassword}
+                      onClick={handleResetPasswordSubmit}
+                      className="w-full py-2 rounded-lg bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                      id="submit-admin-password-reset-btn"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>{isResettingPassword ? 'Resetting Password...' : 'Reset Password'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="pt-2">
                 <button
                   type="button"
+                  disabled={isSelfSelected}
                   onClick={() => handleStatusToggle(selectedMember.id)}
                   className={`w-full py-2.5 rounded-xl border font-bold text-xs transition-colors flex items-center justify-center gap-1.5 ${
-                    selectedMember.status === 'Active'
+                    isSelfSelected
+                      ? 'border-stone-200 bg-stone-100 text-stone-400 cursor-not-allowed'
+                      : selectedMember.status === 'Active'
                       ? 'border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100'
                       : 'border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                   }`}
@@ -416,6 +734,12 @@ export const AdminMembers: React.FC = () => {
                     </>
                   )}
                 </button>
+                {isSelfSelected && (
+                  <p className="text-[11px] text-amber-800 font-medium text-center mt-1.5 flex items-center justify-center gap-1">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>You cannot modify your own account status.</span>
+                  </p>
+                )}
               </div>
             </div>
 

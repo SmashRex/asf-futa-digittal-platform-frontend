@@ -1,90 +1,87 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import React from 'react';
-import { Camera } from 'lucide-react';
 import { ImageWithFallback } from '../../../components/common/ImageWithFallback';
 import { useWebsiteCopy } from '../../../hooks/useWebsiteCopy';
 import { LifeSectionCopy } from '../../../types/websiteCopy';
-
-interface FellowshipPhoto {
-  id: string;
-  url?: string;
-  category: string;
-  description: string;
-}
+import { useMediaPlacements } from '../../../hooks/useMediaPlacement';
 
 interface LifeSectionProps {
   lifeContent?: LifeSectionCopy;
 }
 
-// These represent dynamic slots that can be eventually loaded from the backend
-const STUDENT_GRID_PHOTOS: FellowshipPhoto[] = [
+const STUDENT_GRID_SLOTS = [
   {
-    id: 'stud-1',
-    url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&q=80&w=600',
-    category: 'Students',
-    description: 'Group of students collaborating on campus'
+    key: 'public.life.student_grid_1',
+    fallbackType: 'worship' as const,
+    aspectRatio: 'aspect-[4/5]',
+    fallbackAlt: 'Group of students collaborating on campus',
   },
   {
-    id: 'stud-2',
-    url: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&q=80&w=600',
-    category: 'Fellowship',
-    description: 'Sharing warm fellowship moments'
+    key: 'public.life.student_grid_2',
+    fallbackType: 'userAvatar' as const,
+    aspectRatio: 'aspect-square',
+    fallbackAlt: 'Sharing warm fellowship moments',
   },
   {
-    id: 'stud-3',
-    url: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&q=80&w=600',
-    category: 'Community',
-    description: 'Joyful community celebrations'
+    key: 'public.life.student_grid_3',
+    fallbackType: 'eventHero' as const,
+    aspectRatio: 'aspect-square',
+    fallbackAlt: 'Joyful community celebrations',
   },
   {
-    id: 'stud-4',
-    url: 'https://images.unsplash.com/photo-1511649475100-1100cca080cf?auto=format&fit=crop&q=80&w=600',
-    category: 'Academic Life',
-    description: 'Studying together in the library'
-  }
+    key: 'public.life.student_grid_4',
+    fallbackType: 'bibleStudy' as const,
+    aspectRatio: 'aspect-[4/5]',
+    fallbackAlt: 'Studying together in the library',
+  },
 ];
 
-const LIFE_GALLERY_PHOTOS: FellowshipPhoto[] = [
+const LIFE_GALLERY_SLOTS = [
   {
-    id: 'life-1',
-    url: 'https://images.unsplash.com/photo-1510561195210-915995574045?auto=format&fit=crop&q=80&w=600',
+    key: 'public.life.gallery_1',
     category: 'Worship',
-    description: 'Singing praises during weekly fellowship'
+    fallbackAlt: 'Singing praises during weekly fellowship',
   },
   {
-    id: 'life-2',
-    url: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&q=80&w=600',
+    key: 'public.life.gallery_2',
     category: 'Bible Study',
-    description: 'Interactive group discussions and scriptural study'
+    fallbackAlt: 'Interactive group discussions and scriptural study',
   },
   {
-    id: 'life-3',
-    url: 'https://images.unsplash.com/photo-1489641493513-ba4ee84ccea9?auto=format&fit=crop&q=80&w=600',
+    key: 'public.life.gallery_3',
     category: 'Prayer',
-    description: 'Interceding together in faith'
+    fallbackAlt: 'Interceding together in faith',
   },
   {
-    id: 'life-4',
-    url: 'https://images.unsplash.com/photo-1475721027785-f74eccf877e2?auto=format&fit=crop&q=80&w=600',
+    key: 'public.life.gallery_4',
     category: 'Community',
-    description: 'Moments of laughter and campus community'
+    fallbackAlt: 'Moments of laughter and campus community',
   },
   {
-    id: 'life-5',
-    url: 'https://images.unsplash.com/photo-1526976781193-352413b8ebd2?auto=format&fit=crop&q=80&w=600',
+    key: 'public.life.gallery_5',
     category: 'Events',
-    description: 'Memories from our annual homecoming gala'
+    fallbackAlt: 'Memories from our annual homecoming gala',
   },
   {
-    id: 'life-6',
-    url: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=600',
+    key: 'public.life.gallery_6',
     category: 'Campus Life',
-    description: 'Spreading the divine light across FUTA campus'
-  }
+    fallbackAlt: 'Spreading the divine light across FUTA campus',
+  },
+];
+
+const ALL_LIFE_KEYS = [
+  ...STUDENT_GRID_SLOTS.map((s) => s.key),
+  ...LIFE_GALLERY_SLOTS.map((s) => s.key),
 ];
 
 export default function LifeSection({ lifeContent }: LifeSectionProps = {}) {
   const { life: fallbackLife } = useWebsiteCopy();
   const life = lifeContent || fallbackLife;
+  const { placements } = useMediaPlacements(ALL_LIFE_KEYS);
 
   return (
     <section data-section-id="life" className="py-24 bg-white border-t border-stone-200">
@@ -117,21 +114,21 @@ export default function LifeSection({ lifeContent }: LifeSectionProps = {}) {
             <div className="space-y-4 pt-12">
               <div className="rounded-2xl overflow-hidden shadow-sm relative group">
                 <ImageWithFallback
-                  src={STUDENT_GRID_PHOTOS[0].url}
-                  fallbackType="worship"
+                  src={placements['public.life.student_grid_1']?.url || undefined}
+                  fallbackType={STUDENT_GRID_SLOTS[0].fallbackType}
                   preset="card"
-                  aspectRatio="aspect-[4/5]"
-                  alt={STUDENT_GRID_PHOTOS[0].description}
+                  aspectRatio={STUDENT_GRID_SLOTS[0].aspectRatio}
+                  alt={placements['public.life.student_grid_1']?.altText || STUDENT_GRID_SLOTS[0].fallbackAlt}
                   className="transition-transform duration-700 group-hover:scale-105"
                 />
               </div>
               <div className="rounded-2xl overflow-hidden shadow-sm relative group">
                 <ImageWithFallback
-                  src={STUDENT_GRID_PHOTOS[1].url}
-                  fallbackType="userAvatar"
+                  src={placements['public.life.student_grid_2']?.url || undefined}
+                  fallbackType={STUDENT_GRID_SLOTS[1].fallbackType}
                   preset="card"
-                  aspectRatio="aspect-square"
-                  alt={STUDENT_GRID_PHOTOS[1].description}
+                  aspectRatio={STUDENT_GRID_SLOTS[1].aspectRatio}
+                  alt={placements['public.life.student_grid_2']?.altText || STUDENT_GRID_SLOTS[1].fallbackAlt}
                   className="transition-transform duration-700 group-hover:scale-105"
                 />
               </div>
@@ -139,21 +136,21 @@ export default function LifeSection({ lifeContent }: LifeSectionProps = {}) {
             <div className="space-y-4">
               <div className="rounded-2xl overflow-hidden shadow-sm relative group">
                 <ImageWithFallback
-                  src={STUDENT_GRID_PHOTOS[2].url}
-                  fallbackType="eventHero"
+                  src={placements['public.life.student_grid_3']?.url || undefined}
+                  fallbackType={STUDENT_GRID_SLOTS[2].fallbackType}
                   preset="card"
-                  aspectRatio="aspect-square"
-                  alt={STUDENT_GRID_PHOTOS[2].description}
+                  aspectRatio={STUDENT_GRID_SLOTS[2].aspectRatio}
+                  alt={placements['public.life.student_grid_3']?.altText || STUDENT_GRID_SLOTS[2].fallbackAlt}
                   className="transition-transform duration-700 group-hover:scale-105"
                 />
               </div>
               <div className="rounded-2xl overflow-hidden shadow-sm relative group">
                 <ImageWithFallback
-                  src={STUDENT_GRID_PHOTOS[3].url}
-                  fallbackType="bibleStudy"
+                  src={placements['public.life.student_grid_4']?.url || undefined}
+                  fallbackType={STUDENT_GRID_SLOTS[3].fallbackType}
                   preset="card"
-                  aspectRatio="aspect-[4/5]"
-                  alt={STUDENT_GRID_PHOTOS[3].description}
+                  aspectRatio={STUDENT_GRID_SLOTS[3].aspectRatio}
+                  alt={placements['public.life.student_grid_4']?.altText || STUDENT_GRID_SLOTS[3].fallbackAlt}
                   className="transition-transform duration-700 group-hover:scale-105"
                 />
               </div>
@@ -173,25 +170,29 @@ export default function LifeSection({ lifeContent }: LifeSectionProps = {}) {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {LIFE_GALLERY_PHOTOS.map((photo) => (
-              <div key={photo.id} className="group relative rounded-2xl overflow-hidden shadow-sm">
-                <ImageWithFallback
-                  src={photo.url}
-                  fallbackType="worship"
-                  preset="card"
-                  aspectRatio="aspect-[4/3]"
-                  alt={photo.description}
-                  className="transition-transform duration-700 group-hover:scale-105"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-                <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
-                  <span className="px-2 py-1 bg-white/20 backdrop-blur-md rounded-full text-white text-[10px] font-bold uppercase tracking-wider mb-2 inline-block">
-                    {photo.category}
-                  </span>
-                  <p className="text-white font-body-md font-medium">{photo.description}</p>
+            {LIFE_GALLERY_SLOTS.map((slot) => {
+              const asset = placements[slot.key];
+              const altText = asset?.altText || slot.fallbackAlt;
+              return (
+                <div key={slot.key} className="group relative rounded-2xl overflow-hidden shadow-sm">
+                  <ImageWithFallback
+                    src={asset?.url || undefined}
+                    fallbackType="worship"
+                    preset="card"
+                    aspectRatio="aspect-[4/3]"
+                    alt={altText}
+                    className="transition-transform duration-700 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 pointer-events-none">
+                    <span className="px-2 py-1 bg-white/20 backdrop-blur-md rounded-full text-white text-[10px] font-bold uppercase tracking-wider mb-2 inline-block">
+                      {slot.category}
+                    </span>
+                    <p className="text-white font-body-md font-medium">{altText}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 

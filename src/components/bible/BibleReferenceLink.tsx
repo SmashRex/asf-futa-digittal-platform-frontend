@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, ExternalLink } from 'lucide-react';
+import { BookOpen, ExternalLink, AlertTriangle } from 'lucide-react';
 import { BibleReference } from '../../types';
 import { buildBibleRoute, formatBibleReference, parseBibleReference } from '../../config/bible.config';
 
@@ -13,7 +13,7 @@ export interface BibleReferenceLinkProps {
   reference: string | BibleReference;
   variant?: 'inline' | 'badge' | 'button' | 'card';
   mode?: 'navigate' | 'overlay';
-  onOverlayOpen?: (refString: string) => void;
+  onOverlayOpen?: (refString: string, refObj?: BibleReference) => void;
   className?: string;
   showIcon?: boolean;
   children?: React.ReactNode;
@@ -30,6 +30,9 @@ export const BibleReferenceLink: React.FC<BibleReferenceLinkProps> = ({
 }) => {
   const navigate = useNavigate();
 
+  const isObjectRef = typeof reference === 'object' && reference !== null;
+  const isRecognized = isObjectRef ? (reference.recognized !== false) : true;
+
   const parsedRef: BibleReference | null = typeof reference === 'string' 
     ? parseBibleReference(reference)
     : reference;
@@ -37,8 +40,22 @@ export const BibleReferenceLink: React.FC<BibleReferenceLinkProps> = ({
   const displayString = children || (
     typeof reference === 'string' 
       ? reference 
-      : formatBibleReference(reference)
+      : (reference.raw || formatBibleReference(reference))
   );
+
+  // If the scripture reference was explicitly flagged as unrecognized by the backend
+  if (!isRecognized) {
+    return (
+      <span 
+        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-800 border border-rose-200 select-none ${className}`}
+        title="Unrecognized scripture reference — needs manual checking"
+      >
+        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+        <span className="line-through opacity-80">{displayString}</span>
+        <span className="text-[10px] uppercase tracking-wider font-bold text-rose-600 bg-rose-100/80 px-1.5 py-0.2 rounded">Needs Check</span>
+      </span>
+    );
+  }
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -46,14 +63,14 @@ export const BibleReferenceLink: React.FC<BibleReferenceLinkProps> = ({
 
     const refString = typeof reference === 'string' 
       ? reference 
-      : formatBibleReference(reference);
+      : (reference.raw || formatBibleReference(reference));
 
     if (mode === 'overlay' && onOverlayOpen) {
-      onOverlayOpen(refString);
+      onOverlayOpen(refString, parsedRef || undefined);
       return;
     }
 
-    if (parsedRef) {
+    if (parsedRef && parsedRef.chapter) {
       const targetRoute = buildBibleRoute(parsedRef);
       navigate(targetRoute);
     } else if (typeof reference === 'string') {
@@ -82,7 +99,7 @@ export const BibleReferenceLink: React.FC<BibleReferenceLinkProps> = ({
       <button
         type="button"
         onClick={handleClick}
-        className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-[var(--color-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-tint)] transition-all shadow-xs ${className}`}
+        className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-[var(--color-primary)] border border-[var(--color-border)] hover:border-[var(--color-primary)] hover:bg-[var(--color-primary-tint)] transition-all shadow-xs cursor-pointer ${className}`}
       >
         {showIcon && <BookOpen className="w-3.5 h-3.5 text-[var(--color-primary)] shrink-0" />}
         <span>{displayString}</span>

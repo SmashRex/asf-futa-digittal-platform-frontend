@@ -238,7 +238,7 @@ export function buildBibleRoute(
   }
 
   if (typeof bookOrRef === 'object') {
-    const bookId = normalizeBookId(bookOrRef.bookId || bookOrRef.book);
+    const bookId = bookOrRef.bookId || normalizeBookId(bookOrRef.book);
     const ch = bookOrRef.chapter || 1;
     if (bookOrRef.verseStart) {
       return `/bible/${bookId}/${ch}/${bookOrRef.verseStart}`;

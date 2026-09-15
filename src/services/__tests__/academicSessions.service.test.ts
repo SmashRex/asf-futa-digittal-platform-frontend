@@ -79,6 +79,6 @@ describe('Academic Sessions Service', () => {
     const result = await academicSessionsService.activateAndProgress(sessionId);
     expect(apiClient.post).toHaveBeenCalledWith(`/academic-sessions/${encodedId}/activate-and-progress`, {});
     expect(result.success).toBe(true);
-    expect(result.session?.status).toBe('active');
+    expect(result.session.status).toBe('active');
   });
 });

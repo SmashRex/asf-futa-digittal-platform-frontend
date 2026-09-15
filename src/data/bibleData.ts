@@ -14,6 +14,20 @@ export const mockBibleVersions: BibleVersion[] = [
     isDefault: true
   },
   {
+    id: 'bsb',
+    name: 'Berean Standard Bible',
+    shortName: 'BSB',
+    isPrebundled: false,
+    isDefault: false
+  },
+  {
+    id: 'asv',
+    name: 'American Standard Version',
+    shortName: 'ASV',
+    isPrebundled: false,
+    isDefault: false
+  },
+  {
     id: 'web',
     name: 'World English Bible',
     shortName: 'WEB',

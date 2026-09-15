@@ -17,6 +17,7 @@ export type Permission =
   | 'manage_leadership'
   | 'access_admin_dashboard'
   | 'manage_academic_sessions'
+  | 'override_academic_level'
   | 'manage_system_settings';
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
@@ -28,7 +29,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   'Bible Study Coordinator': ['view_member_content', 'view_fs_materials', 'publish_announcements', 'access_admin_dashboard'],
   'Choir Coordinator': ['view_member_content', 'view_fs_materials', 'publish_announcements', 'access_admin_dashboard'],
   'Publicity Coordinator': ['view_member_content', 'view_fs_materials', 'create_events', 'edit_events', 'publish_announcements', 'manage_members', 'access_admin_dashboard'],
-  'General Secretary': ['view_member_content', 'view_fs_materials', 'create_events', 'edit_events', 'publish_announcements', 'access_admin_dashboard', 'manage_academic_sessions'],
+  'General Secretary': ['view_member_content', 'view_fs_materials', 'create_events', 'edit_events', 'publish_announcements', 'access_admin_dashboard', 'manage_academic_sessions', 'override_academic_level'],
   'Organizing Coordinator': ['view_member_content', 'view_fs_materials', 'create_events', 'edit_events', 'access_admin_dashboard'],
   'Drama Coordinator': ['view_member_content', 'view_fs_materials', 'access_admin_dashboard'],
   'Prayer Coordinator': ['view_member_content', 'view_fs_materials', 'access_admin_dashboard'],
@@ -38,10 +39,10 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   'President / Executive': [
     'view_member_content', 'view_fs_materials', 'manage_fs_school', 
     'create_events', 'edit_events', 'delete_events', 'publish_announcements', 
-    'manage_members', 'manage_leadership', 'access_admin_dashboard', 'manage_academic_sessions', 'manage_system_settings'
+    'manage_members', 'manage_leadership', 'access_admin_dashboard', 'manage_academic_sessions', 'override_academic_level', 'manage_system_settings'
   ],
   'Technical Administrator': [
-    'view_member_content', 'view_fs_materials', 'access_admin_dashboard', 'manage_academic_sessions', 'manage_system_settings'
+    'view_member_content', 'view_fs_materials', 'access_admin_dashboard', 'manage_academic_sessions', 'override_academic_level', 'manage_system_settings'
   ],
   'Alumni': ['view_member_content'],
 };

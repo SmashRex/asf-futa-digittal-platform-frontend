@@ -455,7 +455,7 @@ function AppContent() {
       />
       <Route 
         path="/sign-in" 
-        element={currentUser ? <Navigate to="/home" replace /> : <SignIn />} 
+        element={currentUser ? <Navigate to="/home" replace /> : <SignIn onLoginSuccess={handleLoginSuccess} />} 
       />
       <Route 
         path="/register" 

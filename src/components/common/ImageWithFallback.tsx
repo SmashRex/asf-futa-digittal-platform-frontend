@@ -39,6 +39,7 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     if (!src) {
       setLoading(false);
       setDisplaySrc('');
+      setError(true);
       return;
     }
 

@@ -11,12 +11,18 @@ import { API_CONFIG } from '../../config/api.config';
 export interface RegisterPayload {
   name: string;
   email: string;
+  password?: string;
   department: string;
-  level: string;
+  level?: string;
   academicLevel?: string;
   programDurationYears?: 4 | 5;
   phoneNumber?: string;
   subgroup?: string;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
 }
 
 export interface MagicLinkRequestPayload {
@@ -87,9 +93,19 @@ class AuthService {
       throw error;
     }
 
+    if (payload.password === undefined || typeof payload.password !== 'string' || payload.password.length < 8) {
+      const error: any = new Error('Password must be at least 8 characters long');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+
     const effectiveDuration: 4 | 5 = payload.programDurationYears === 5 ? 5 : 4;
     const requestPayload = {
-      ...payload,
+      email: payload.email.trim().toLowerCase(),
+      name: payload.name.trim(),
+      password: payload.password,
+      department: payload.department.trim(),
+      academicLevel: payload.academicLevel || payload.level || '100 Level',
       programDurationYears: effectiveDuration,
     };
 
@@ -104,18 +120,28 @@ class AuthService {
         let errCode = 'REGISTRATION_FAILED';
         let errMsg = `Registration failed with status ${response.status}`;
         let errDetails: unknown = undefined;
-        try {
-          const errData = await response.json();
-          if (errData?.error?.code) {
-            errCode = errData.error.code;
-            errMsg = errData.error.message || errMsg;
-            errDetails = errData.error.details;
-          } else if (errData?.message) {
-            errMsg = errData.message;
-          }
-        } catch {}
+
+        if (response.status === 429) {
+          errCode = 'TOO_MANY_REQUESTS';
+          errMsg = 'Too many attempts. Please wait a while before trying again.';
+        } else {
+          try {
+            const errData = await response.json();
+            if (errData?.error?.code === 'TOO_MANY_REQUESTS') {
+              errCode = 'TOO_MANY_REQUESTS';
+              errMsg = 'Too many attempts. Please wait a while before trying again.';
+            } else if (errData?.error?.code) {
+              errCode = errData.error.code;
+              errMsg = errData.error.message || errMsg;
+              errDetails = errData.error.details;
+            } else if (errData?.message) {
+              errMsg = errData.message;
+            }
+          } catch {}
+        }
         const error: any = new Error(errMsg);
         error.code = errCode;
+        error.statusCode = response.status;
         error.details = errDetails;
         throw error;
       }
@@ -139,13 +165,13 @@ class AuthService {
           name: payload.name.trim(),
           email: payload.email.trim().toLowerCase(),
           department: payload.department.trim(),
-          academicLevel: payload.level,
+          academicLevel: payload.academicLevel || payload.level || '100 Level',
           subgroup: payload.subgroup?.trim() || 'General Assembly',
           phoneNumber: payload.phoneNumber?.trim() || undefined,
           programDurationYears: effectiveDuration,
           roles: ['Member'],
           accountStatus: 'Active',
-          membershipStatus: payload.level === 'Alumni' ? 'Alumni' : 'Active Student',
+          membershipStatus: (payload.academicLevel || payload.level) === 'Alumni' ? 'Alumni' : 'Active Student',
         };
 
         const user = this.normalizeUser(rawUser);
@@ -154,7 +180,114 @@ class AuthService {
         localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(user));
 
         resolve({ user, token });
-      }, 700);
+      }, 500);
+    });
+  }
+
+  /**
+   * Primary authentication path: Password-based login.
+   * Connects to backend: POST /api/auth/login
+   */
+  async login(payload: LoginPayload): Promise<VerifyTokenResponse> {
+    const email = (payload.email || '').trim().toLowerCase();
+    const password = payload.password || '';
+
+    if (!email || !password) {
+      const error: any = new Error('Incorrect email or password.');
+      error.code = 'INVALID_CREDENTIALS';
+      throw error;
+    }
+
+    if (!APP_CONFIG.features.useMockServices) {
+      const response = await fetch(`${API_CONFIG.baseUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!response.ok) {
+        let errCode = 'INVALID_CREDENTIALS';
+        let errMsg = 'Incorrect email or password.';
+        let errDetails: unknown = undefined;
+
+        if (response.status === 429) {
+          errCode = 'TOO_MANY_REQUESTS';
+          errMsg = 'Too many attempts. Please wait a while before trying again.';
+        } else {
+          try {
+            const errData = await response.json();
+            if (errData?.error?.code === 'TOO_MANY_REQUESTS') {
+              errCode = 'TOO_MANY_REQUESTS';
+              errMsg = 'Too many attempts. Please wait a while before trying again.';
+            } else if (errData?.error?.code) {
+              errCode = errData.error.code;
+            }
+          } catch {}
+          if (errCode !== 'TOO_MANY_REQUESTS') {
+            errMsg = 'Incorrect email or password.';
+          }
+        }
+
+        const error: any = new Error(errMsg);
+        error.code = errCode;
+        error.statusCode = response.status;
+        error.details = errDetails;
+        throw error;
+      }
+
+      const data = await response.json();
+      const rawUser = data?.data?.user || data?.data || data?.user || data;
+      const normalizedUser = this.normalizeUser(rawUser);
+
+      // Session is managed via HttpOnly asf_session cookie, cached locally for offline support
+      localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(normalizedUser));
+
+      return { user: normalizedUser, token: data.token || data?.data?.token };
+    }
+
+    // Fallback simulation mode for development environment
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        if (password.length < 4) {
+          const error: any = new Error('Incorrect email or password.');
+          error.code = 'INVALID_CREDENTIALS';
+          return reject(error);
+        }
+
+        let roleList: string[] = ['Member'];
+        if (email === 'admin@asf-futa.org') {
+          roleList = ['Publicity Coordinator', 'Member'];
+        } else if (email === 'president@asf-futa.org') {
+          roleList = ['President / Executive', 'Member'];
+        } else if (email === 'biblestudy@asf-futa.org') {
+          roleList = ['Bible Study Coordinator', 'Member'];
+        } else if (email === 'fs@asf-futa.org') {
+          roleList = ['VP / FS Coordinator', 'Member'];
+        } else if (email === 'tech@asf-futa.org') {
+          roleList = ['Technical Administrator', 'Member'];
+        } else if (email === 'gensec@asf-futa.org') {
+          roleList = ['General Secretary', 'Member'];
+        }
+
+        const user = this.normalizeUser({
+          id: `usr_${Date.now()}`,
+          name: email.startsWith('admin') ? 'ASF Admin' : (email.startsWith('president') ? 'Bro. President' : (email.startsWith('tech') ? 'Tech Administrator' : (email.startsWith('gensec') ? 'General Secretary' : 'Fellowship Member'))),
+          email: email,
+          department: 'Computer Science',
+          academicLevel: '400 Level',
+          subgroup: 'General Assembly',
+          roles: roleList,
+          accountStatus: 'Active',
+          membershipStatus: 'Active Student',
+        });
+
+        const token = `mock_jwt_token_${Date.now()}`;
+        localStorage.setItem(APP_CONFIG.storageKeys.authToken, token);
+        localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(user));
+
+        resolve({ user, token });
+      }, 400);
     });
   }
 
@@ -174,18 +307,28 @@ class AuthService {
         let errCode = 'MAGIC_LINK_FAILED';
         let errMsg = 'Failed to request login link';
         let errDetails: unknown = undefined;
-        try {
-          const errData = await response.json();
-          if (errData?.error?.code) {
-            errCode = errData.error.code;
-            errMsg = errData.error.message || errMsg;
-            errDetails = errData.error.details;
-          } else if (errData?.message) {
-            errMsg = errData.message;
-          }
-        } catch {}
+
+        if (response.status === 429) {
+          errCode = 'TOO_MANY_REQUESTS';
+          errMsg = 'Too many attempts. Please wait a while before trying again.';
+        } else {
+          try {
+            const errData = await response.json();
+            if (errData?.error?.code === 'TOO_MANY_REQUESTS') {
+              errCode = 'TOO_MANY_REQUESTS';
+              errMsg = 'Too many attempts. Please wait a while before trying again.';
+            } else if (errData?.error?.code) {
+              errCode = errData.error.code;
+              errMsg = errData.error.message || errMsg;
+              errDetails = errData.error.details;
+            } else if (errData?.message) {
+              errMsg = errData.message;
+            }
+          } catch {}
+        }
         const error: any = new Error(errMsg);
         error.code = errCode;
+        error.statusCode = response.status;
         error.details = errDetails;
         throw error;
       }
@@ -291,12 +434,48 @@ class AuthService {
   }
 
   /**
-   * Asynchronously fetch current authenticated user profile from backend: GET /api/auth/me
+   * Authoritative session establishment & validation: GET /api/auth/me
    */
-  async fetchCurrentUser(): Promise<UserProfile | null> {
+  async getMe(): Promise<UserProfile | null> {
     if (!APP_CONFIG.features.useMockServices) {
       try {
         const response = await fetch(`${API_CONFIG.baseUrl}/auth/me`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const rawData = await response.json();
+          const rawUser = rawData?.data?.user || rawData?.data || rawData?.user || rawData;
+          if (rawUser && (rawUser.id || rawUser.email)) {
+            const user = this.normalizeUser(rawUser);
+            localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(user));
+            return user;
+          }
+        }
+        // 401 indicates unauthenticated/session invalid: clear cached session
+        if (response.status === 401) {
+          localStorage.removeItem(APP_CONFIG.storageKeys.userSession);
+          return null;
+        }
+        // 403 indicates authenticated but not permitted: DO NOT log user out
+        if (response.status === 403) {
+          return this.getCurrentUser();
+        }
+      } catch (e) {
+        console.warn('Unable to reach backend /api/auth/me; falling back to cached session', e);
+      }
+    }
+    return this.getCurrentUser();
+  }
+
+  /**
+   * Asynchronously fetch current authenticated user profile from backend: GET /api/users/profile
+   */
+  async getProfile(): Promise<UserProfile | null> {
+    if (!APP_CONFIG.features.useMockServices) {
+      try {
+        const response = await fetch(`${API_CONFIG.baseUrl}/users/profile`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -309,11 +488,17 @@ class AuthService {
           return user;
         }
       } catch (e) {
-        console.warn('Unable to reach backend /api/auth/me; falling back to cached session', e);
+        console.warn('Unable to reach backend /api/users/profile; falling back to cached session', e);
       }
     }
-
     return this.getCurrentUser();
+  }
+
+  /**
+   * Asynchronously fetch current authenticated user profile or session.
+   */
+  async fetchCurrentUser(): Promise<UserProfile | null> {
+    return this.getMe();
   }
 
   /**
@@ -330,10 +515,42 @@ class AuthService {
   }
 
   /**
-   * Update current user profile.
+   * Update current user profile: PUT /api/users/profile
    */
-  async updateProfile(profile: UserProfile): Promise<UserProfile> {
-    const normalized = this.normalizeUser(profile);
+  async updateProfile(profile: Partial<UserProfile>): Promise<UserProfile> {
+    if (!APP_CONFIG.features.useMockServices) {
+      const response = await fetch(`${API_CONFIG.baseUrl}/users/profile`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(profile),
+      });
+      if (!response.ok) {
+        let errCode = 'PROFILE_UPDATE_FAILED';
+        let errMsg = 'Failed to update profile';
+        try {
+          const errData = await response.json();
+          if (errData?.error?.code) {
+            errCode = errData.error.code;
+            errMsg = errData.error.message || errMsg;
+          } else if (errData?.message) {
+            errMsg = errData.message;
+          }
+        } catch {}
+        const error: any = new Error(errMsg);
+        error.code = errCode;
+        throw error;
+      }
+      const data = await response.json();
+      const rawUser = data?.data?.user || data?.data || data?.user || data;
+      const normalized = this.normalizeUser(rawUser);
+      localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(normalized));
+      return normalized;
+    }
+
+    const current = this.getCurrentUser();
+    const merged = { ...(current || {}), ...profile };
+    const normalized = this.normalizeUser(merged);
     localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(normalized));
     return normalized;
   }

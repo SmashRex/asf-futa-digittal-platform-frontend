@@ -14,8 +14,8 @@ export const APP_CONFIG = {
     accentColor: '#DAA520',  // Gold
   },
   features: {
-    enableDevSimulations: import.meta.env.DEV || import.meta.env.VITE_ENABLE_DEV_TOOLS === 'true',
-    useMockServices: import.meta.env.VITE_USE_MOCK_SERVICES !== 'false', // Default true until backend is connected
+    enableDevSimulations: import.meta.env.VITE_ENABLE_DEV_TOOLS === 'true',
+    useMockServices: import.meta.env.VITE_USE_MOCK_SERVICES !== 'false', // Default true for unit test suites unless VITE_USE_MOCK_SERVICES=false
     enableOfflineCache: true,
   },
   storageKeys: {

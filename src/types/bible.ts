@@ -15,6 +15,8 @@ export interface BibleReference {
   verseStart?: number;
   verseEnd?: number;
   raw?: string;
+  translationId?: string;
+  recognized?: boolean;
 }
 
 export interface BibleVerseDetail {

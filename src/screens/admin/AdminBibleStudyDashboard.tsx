@@ -11,42 +11,85 @@ import {
   Users, 
   CheckCircle2, 
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  Settings,
+  Sparkles
 } from 'lucide-react';
 import { bibleStudyService } from '../../services/bibleStudy/bibleStudy.service';
-import { BibleStudyItem } from '../../types';
+import { 
+  BibleStudyItem, 
+  UploadOutlineResponse, 
+  ExtractedStudyFields, 
+  DetectedScriptureReference 
+} from '../../types';
+import { StudyOutlineUpload } from '../../components/admin/StudyOutlineUpload';
+import { DetectedStudyEditor } from '../../components/admin/DetectedStudyEditor';
+import { StudyAliasManager } from '../../components/admin/StudyAliasManager';
+import BibleReferenceOverlay from '../../components/BibleReferenceOverlay';
 
 export const AdminBibleStudyDashboard: React.FC = () => {
   const navigate = useNavigate();
   const [studies, setStudies] = useState<BibleStudyItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewOutlineModal, setShowNewOutlineModal] = useState(false);
+  const [showAliasManager, setShowAliasManager] = useState(false);
+  
+  // Multi-study upload and review state
+  const [detectedUpload, setDetectedUpload] = useState<UploadOutlineResponse | null>(null);
+  const [submittedStudyIds, setSubmittedStudyIds] = useState<Set<number>>(new Set());
+
+  // Scripture overlay viewer state
+  const [activeOverlayRef, setActiveOverlayRef] = useState<string | null>(null);
+  const [activeOverlayObj, setActiveOverlayObj] = useState<DetectedScriptureReference | null>(null);
+
   const [newTopic, setNewTopic] = useState('');
   const [newVerse, setNewVerse] = useState('');
   const [newSubTheme, setNewSubTheme] = useState('Discipleship');
   const [toastMsg, setToastMsg] = useState('');
 
-  useEffect(() => {
-    let isMounted = true;
-    async function loadOutlines() {
-      try {
-        const data = await bibleStudyService.getStudies();
-        if (isMounted) setStudies(data);
-      } catch (err) {
-        console.error('Failed to load Bible studies', err);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
+  const loadOutlines = async () => {
+    try {
+      const data = await bibleStudyService.getStudies();
+      setStudies(data);
+    } catch (err) {
+      console.error('Failed to load Bible studies', err);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadOutlines();
-    return () => {
-      isMounted = false;
-    };
   }, []);
 
   const triggerToast = (msg: string) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(''), 3000);
+    setTimeout(() => setToastMsg(''), 3500);
+  };
+
+  const handleUploadSuccess = (response: UploadOutlineResponse) => {
+    setDetectedUpload(response);
+    setSubmittedStudyIds(new Set());
+    triggerToast(`Detected ${response.studiesFound} study outline ${response.studiesFound === 1 ? 'lesson' : 'lessons'} for review.`);
+  };
+
+  const handleSubmitIndividualStudy = async (index: number, updatedFields: ExtractedStudyFields) => {
+    try {
+      const submitted = await bibleStudyService.submitStudy(updatedFields);
+      setSubmittedStudyIds(prev => new Set(prev).add(index));
+      triggerToast(`Published Lesson ${updatedFields.lessonNumber || index + 1}: "${submitted.title}"`);
+      // Reload published outlines list
+      await loadOutlines();
+    } catch (err: any) {
+      console.error('Failed to submit individual study:', err);
+      triggerToast(err?.message || 'Failed to submit study outline.');
+      throw err;
+    }
+  };
+
+  const handleOpenPassage = (ref: DetectedScriptureReference) => {
+    setActiveOverlayRef(ref.raw);
+    setActiveOverlayObj(ref);
   };
 
   const handleCreateOutline = async (e: React.FormEvent) => {
@@ -74,11 +117,16 @@ export const AdminBibleStudyDashboard: React.FC = () => {
       isPublished: true
     };
 
-    setStudies(prev => [newStudy, ...prev]);
-    setShowNewOutlineModal(false);
-    setNewTopic('');
-    setNewVerse('');
-    triggerToast(`Created outline: "${newStudy.title}"`);
+    try {
+      await bibleStudyService.submitStudy(newStudy);
+      setStudies(prev => [newStudy, ...prev]);
+      setShowNewOutlineModal(false);
+      setNewTopic('');
+      setNewVerse('');
+      triggerToast(`Created outline: "${newStudy.title}"`);
+    } catch (err: any) {
+      triggerToast(err?.message || 'Failed to save outline.');
+    }
   };
 
   return (
@@ -87,7 +135,7 @@ export const AdminBibleStudyDashboard: React.FC = () => {
       {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed bottom-5 right-5 bg-[#5B0617] text-white px-4 py-2.5 rounded-xl shadow-lg border border-[#7A1F2B] text-xs font-bold z-50 flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{toastMsg}</span>
         </div>
       )}
@@ -105,19 +153,94 @@ export const AdminBibleStudyDashboard: React.FC = () => {
             Welcome, Bible Study Coordinator
           </h1>
           <p className="text-xs sm:text-sm text-[#52525B] mt-1 max-w-2xl">
-            Role-scoped workspace for Anglican Students' Fellowship Bible Study Ministry. Draft weekly study outlines, manage syllabi, and coordinate discussion facilitators.
+            Role-scoped workspace for Anglican Students' Fellowship Bible Study Ministry. Upload multi-study curriculum PDFs, review extracted lessons, configure aliases, and coordinate cell studies.
           </p>
         </div>
 
-        <button
-          onClick={() => setShowNewOutlineModal(true)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-bold transition-all shadow-sm shrink-0"
-          id="bs-create-outline-btn"
-        >
-          <Plus className="w-4 h-4" />
-          <span>New Study Outline</span>
-        </button>
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            onClick={() => setShowAliasManager(!showAliasManager)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-[#18181B] text-xs font-bold transition-all"
+            id="bs-toggle-aliases-btn"
+          >
+            <Settings className="w-4 h-4 text-[#52525B]" />
+            <span>Parser Aliases</span>
+          </button>
+
+          <button
+            onClick={() => setShowNewOutlineModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-bold transition-all shadow-sm shrink-0"
+            id="bs-create-outline-btn"
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Study Outline</span>
+          </button>
+        </div>
       </section>
+
+      {/* Optional Aliases Manager Accordion */}
+      {showAliasManager && (
+        <StudyAliasManager />
+      )}
+
+      {/* PDF Multi-Study Upload Component */}
+      <StudyOutlineUpload onUploadSuccess={handleUploadSuccess} />
+
+      {/* Multi-Study Review Section */}
+      {detectedUpload && detectedUpload.studies.length > 0 && (
+        <section className="space-y-4" id="detected-studies-review-section">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-[#5B0617] text-white p-4 sm:p-5 rounded-2xl shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center font-bold">
+                <Sparkles className="w-5 h-5 text-amber-300" />
+              </div>
+              <div>
+                <h2 className="font-serif font-bold text-base tracking-tight">
+                  Multi-Study Review ({detectedUpload.studiesFound} {detectedUpload.studiesFound === 1 ? 'Study' : 'Studies'} Detected)
+                </h2>
+                <p className="text-xs text-white/80">
+                  Inspect and edit fields for each study individually. Approve and publish each lesson to the fellowship curriculum.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setDetectedUpload(null)}
+              className="text-xs font-medium text-white/70 hover:text-white underline self-start sm:self-auto"
+            >
+              Dismiss Review
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            {detectedUpload.studies.map((studyItem, idx) => (
+              <DetectedStudyEditor
+                key={studyItem.id || idx}
+                study={studyItem}
+                index={idx}
+                total={detectedUpload.studies.length}
+                isSubmitted={submittedStudyIds.has(idx)}
+                onSubmitStudy={(updated) => handleSubmitIndividualStudy(idx, updated)}
+                onOpenPassage={handleOpenPassage}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Scripture Reference Viewer Overlay */}
+      {activeOverlayRef && (
+        <BibleReferenceOverlay
+          reference={activeOverlayRef}
+          referenceObj={activeOverlayObj || undefined}
+          isOpen={Boolean(activeOverlayRef)}
+          onClose={() => {
+            setActiveOverlayRef(null);
+            setActiveOverlayObj(null);
+          }}
+          initialVersionId={activeOverlayObj?.translationId || 'KJV'}
+        />
+      )}
 
       {/* Metrics Row */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
@@ -132,7 +255,7 @@ export const AdminBibleStudyDashboard: React.FC = () => {
         <div className="bg-white p-4 rounded-xl border border-[#E4E4E7] shadow-xs">
           <span className="text-[10px] font-bold uppercase text-[#52525B] block mb-1">Study Categories</span>
           <div className="text-2xl font-bold text-blue-900">
-            {isLoading ? '...' : Array.from(new Set(studies.map(s => s.subTheme))).length}
+            {isLoading ? '...' : Array.from(new Set(studies.map(s => s.subTheme || s.theme))).length}
           </div>
           <span className="text-[11px] text-[#52525B] font-medium">Distinct series & themes</span>
         </div>
@@ -214,7 +337,7 @@ export const AdminBibleStudyDashboard: React.FC = () => {
         <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
           <div>
             <h2 className="font-serif font-bold text-base text-[#18181B]">
-              Active & Draft Study Outlines
+              Active & Published Study Outlines
             </h2>
             <p className="text-xs text-[#52525B]">Curriculum topics prepared for fellowship weekly studies.</p>
           </div>
@@ -229,6 +352,10 @@ export const AdminBibleStudyDashboard: React.FC = () => {
 
         {isLoading ? (
           <div className="py-8 text-center text-xs text-[#52525B]">Loading study curriculum...</div>
+        ) : studies.length === 0 ? (
+          <div className="py-8 text-center text-xs text-[#71717A]">
+            No study outlines published yet. Upload a syllabus PDF or draft an outline above.
+          </div>
         ) : (
           <div className="space-y-3">
             {studies.map((item) => (
@@ -239,7 +366,7 @@ export const AdminBibleStudyDashboard: React.FC = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="px-2 py-0.5 text-[10px] font-bold rounded bg-emerald-100 text-emerald-900 border border-emerald-200">
-                      {item.subTheme || 'Discipleship'}
+                      {item.subTheme || item.theme || 'Discipleship'}
                     </span>
                     <span className="text-xs text-[#52525B] font-semibold">{item.date} • Lesson {item.lessonNumber}</span>
                   </div>
@@ -255,7 +382,7 @@ export const AdminBibleStudyDashboard: React.FC = () => {
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={() => navigate(`/bible-study/read/${item.id}`)}
-                    className="px-3 py-1.5 rounded-lg bg-white border border-[#E4E4E7] hover:bg-[#FAF8F5] text-xs font-medium text-[#18181B]"
+                    className="px-3 py-1.5 rounded-lg bg-white border border-[#E4E4E7] hover:bg-[#FAF8F5] text-xs font-medium text-[#18181B] cursor-pointer"
                   >
                     Open Outline
                   </button>
@@ -283,7 +410,7 @@ export const AdminBibleStudyDashboard: React.FC = () => {
                   placeholder="e.g. Walking in Holiness & Integrity"
                   value={newTopic}
                   onChange={(e) => setNewTopic(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] focus:outline-none focus:border-[#5B0617] text-xs"
+                  className="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] focus:outline-none focus:border-[#5B0617] text-xs font-medium"
                 />
               </div>
 
@@ -294,7 +421,7 @@ export const AdminBibleStudyDashboard: React.FC = () => {
                   placeholder="e.g. Discipleship or Spiritual Growth"
                   value={newSubTheme}
                   onChange={(e) => setNewSubTheme(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] focus:outline-none focus:border-[#5B0617] text-xs"
+                  className="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] focus:outline-none focus:border-[#5B0617] text-xs font-medium"
                 />
               </div>
 
@@ -305,7 +432,7 @@ export const AdminBibleStudyDashboard: React.FC = () => {
                   placeholder="e.g. 1 Peter 1:15-16"
                   value={newVerse}
                   onChange={(e) => setNewVerse(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] focus:outline-none focus:border-[#5B0617] text-xs"
+                  className="w-full px-3 py-2 rounded-xl border border-[#E4E4E7] focus:outline-none focus:border-[#5B0617] text-xs font-medium"
                 />
               </div>
 
@@ -313,13 +440,13 @@ export const AdminBibleStudyDashboard: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowNewOutlineModal(false)}
-                  className="px-4 py-2 rounded-xl border border-[#E4E4E7] bg-white hover:bg-[#FAF8F5] font-bold text-[#18181B]"
+                  className="px-4 py-2 rounded-xl border border-[#E4E4E7] bg-white hover:bg-[#FAF8F5] font-bold text-[#18181B] cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white font-bold"
+                  className="px-4 py-2 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white font-bold cursor-pointer"
                 >
                   Save Outline
                 </button>
@@ -332,3 +459,4 @@ export const AdminBibleStudyDashboard: React.FC = () => {
     </div>
   );
 };
+

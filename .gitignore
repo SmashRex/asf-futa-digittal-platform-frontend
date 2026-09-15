@@ -1,25 +1,11 @@
-# Dependencies
 node_modules/
-
-# Build output
 build/
 dist/
 coverage/
-
-# Environment
+.DS_Store
+*.log
 .env*
 !.env.example
-
-# Logs / OS
-*.log
-.DS_Store
-
-# Vercel
-.vercel/
-
-# Archives / temporary files
+.vercel
 *.zip
 *.tmp
-
-# Internal documentation
-docs/

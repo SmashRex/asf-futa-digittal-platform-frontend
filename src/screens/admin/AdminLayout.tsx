@@ -40,6 +40,8 @@ import {
 import { AdminHeader } from '../../components/admin/AdminHeader';
 import { AdminSidebar } from '../../components/admin/AdminSidebar';
 import { useDevState } from '../../dev/simulations/devState';
+import { APP_CONFIG } from '../../config/app.config';
+import { membersService } from '../../services/members/members.service';
 
 export interface AdminContextType {
   activeRole: AdminRole;
@@ -63,9 +65,12 @@ export interface AdminContextType {
   updateContentStatus: (id: string, newStatus: AdminContentItem['status'], comment?: string) => void;
   addMember: (memberData: Omit<AdminMember, 'id' | 'joinDate' | 'lastActive'>) => void;
   updateMemberRole: (memberId: string, role: AdminMember['role']) => void;
+  updateMemberLevel: (memberId: string, level: string) => void;
   updateMemberOverrides: (memberId: string, overrides: PermissionOverride) => void;
-  resetMemberAccess: (memberId: string) => void;
+  resetMemberAccess: (memberId: string, customNewPassword?: string) => Promise<void> | void;
   toggleMemberStatus: (memberId: string) => void;
+  activeMember?: AdminMember;
+  userRoles?: string[];
   addAuditLog: (action: string, target: string, details?: string) => void;
   updateLeadershipRole: (roleId: string, updates: Partial<LeadershipRole>) => void;
   toggleHandoverChecklistItem: (itemId: string) => void;
@@ -296,6 +301,36 @@ export const AdminLayout: React.FC = () => {
     localStorage.setItem('asf_admin_members', JSON.stringify(members));
   }, [members]);
 
+  // When connected to the staging backend, fetch authoritative members
+  useEffect(() => {
+    if (!APP_CONFIG.features.useMockServices) {
+      membersService.getMembers({ limit: 100 })
+        .then(result => {
+          const memberList = result?.data || (result as any)?.members;
+          if (Array.isArray(memberList) && memberList.length > 0) {
+            const backendMembers: AdminMember[] = memberList.map((m: any) => ({
+              id: m.id,
+              name: m.name || m.fullName || `${m.firstName || ''} ${m.lastName || ''}`.trim() || m.email,
+              email: m.email,
+              phone: m.phone || '',
+              role: (m.role || m.roles?.[0] || 'Member') as any,
+              level: m.level || m.academicLevel || '100L',
+              status: m.status || (m.accountStatus === 'suspended' ? 'Suspended' : (m.accountStatus === 'inactive' ? 'Inactive' : 'Active')),
+              joinDate: m.joinDate || (m.createdAt ? new Date(m.createdAt).toLocaleDateString() : 'Recent'),
+              lastActive: m.lastActive || 'Recently',
+              department: m.department || '',
+              faculty: m.faculty || '',
+              subgroup: m.subgroup || 'General Member',
+            }));
+            setMembers(backendMembers);
+          }
+        })
+        .catch(err => {
+          console.warn('Real backend members fetch error in AdminLayout:', err);
+        });
+    }
+  }, []);
+
   useEffect(() => {
     localStorage.setItem('asf_admin_audit', JSON.stringify(auditLogs));
   }, [auditLogs]);
@@ -404,15 +439,32 @@ export const AdminLayout: React.FC = () => {
     addAuditLog('Updated Member Office/Role', target ? target.name : memberId, `New Office: ${role}`);
   };
 
+  const updateMemberLevel = (memberId: string, level: string) => {
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, level } : m));
+    const target = members.find(m => m.id === memberId);
+    addAuditLog('Overrode Academic Level', target ? target.name : memberId, `New Level: ${level}`);
+  };
+
   const updateMemberOverrides = (memberId: string, overrides: PermissionOverride) => {
     setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissionOverrides: overrides } : m));
     const target = members.find(m => m.id === memberId);
     addAuditLog('Updated Permission Overrides', target ? target.name : memberId, `Granted: ${overrides.granted.length}, Revoked: ${overrides.revoked.length}`);
   };
 
-  const resetMemberAccess = (memberId: string) => {
+  const resetMemberAccess = async (memberId: string, customNewPassword?: string) => {
     const target = members.find(m => m.id === memberId);
     if (!target) return;
+    if (customNewPassword) {
+      try {
+        await membersService.resetPassword(memberId, customNewPassword);
+        addAuditLog('Admin Reset Member Password', target.name, 'Password reset by administrator');
+        addSystemLog('Info', 'Auth Service', 'Member Password Reset', '200 OK', `Direct password reset applied for ${target.email}`);
+        return;
+      } catch (err: any) {
+        addSystemLog('Error', 'Auth Service', 'Password Reset Failed', '500 Server Error', err.message);
+        throw err;
+      }
+    }
     addAuditLog('Dispatched Access Recovery Link', target.name, `Secure reset link sent to ${target.email}`);
     addSystemLog('Info', 'Auth Service', 'Access Recovery Dispatched', '200 OK', `One-time login recovery link dispatched to ${target.email}`);
   };
@@ -658,9 +710,12 @@ export const AdminLayout: React.FC = () => {
     updateContentStatus,
     addMember,
     updateMemberRole,
+    updateMemberLevel,
     updateMemberOverrides,
     resetMemberAccess,
     toggleMemberStatus,
+    activeMember,
+    userRoles: userRolesList,
     addAuditLog,
     updateLeadershipRole,
     toggleHandoverChecklistItem,

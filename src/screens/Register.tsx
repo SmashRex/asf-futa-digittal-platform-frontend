@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
-import { User, Mail, Phone, ArrowLeft, ChevronRight, HelpCircle, GraduationCap } from 'lucide-react';
+import { User, Mail, Phone, ArrowLeft, ChevronRight, HelpCircle, GraduationCap, Lock, Eye, EyeOff } from 'lucide-react';
 import Input from '../components/common/Input';
 import { authService } from '../services/auth/auth.service';
 import { UserProfile } from '../types';
@@ -21,6 +21,8 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
   // Required Account Creation Fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [department, setDepartment] = useState('');
   const [level, setLevel] = useState('100 Level');
   const [programDurationYears, setProgramDurationYears] = useState<4 | 5>(4);
@@ -35,6 +37,7 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setError('');
 
     // Field Validation
@@ -57,6 +60,16 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
       return;
     }
 
+    if (!password) {
+      setError('Please enter a password.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
     if (!trimmedDept) {
       setError('Please enter your academic department.');
       return;
@@ -72,8 +85,10 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
       const response = await authService.register({
         name: trimmedName,
         email: trimmedEmail,
+        password: password,
         department: trimmedDept,
         level,
+        academicLevel: level,
         programDurationYears: effectiveDuration,
         phoneNumber: phoneNumber.trim() || undefined,
         subgroup: subgroup.trim() || undefined,
@@ -90,7 +105,11 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
         });
       }
     } catch (err: any) {
-      setError(err.message || 'Registration failed. Please verify your details and try again.');
+      if (err.statusCode === 429 || err.code === 'TOO_MANY_REQUESTS') {
+        setError('Too many attempts. Please wait a while before trying again.');
+      } else {
+        setError(err.message || 'Registration failed. Please verify your details and try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -163,6 +182,35 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
               showClearButton={true}
               onClear={() => setEmail('')}
             />
+
+            {/* Password */}
+            <div className="space-y-1">
+              <div className="relative">
+                <Input
+                  id="register-password-input"
+                  label="Password *"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Enter a secure password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  leadingIcon={Lock}
+                  disabled={isLoading}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-[38px] text-[var(--color-text-light)] hover:text-[var(--color-text-primary)] transition-colors"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  id="register-toggle-password-btn"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <p className="text-[11px] text-[var(--color-text-secondary)] pl-0.5" id="register-password-hint">
+                Password must be at least 4 characters long.
+              </p>
+            </div>
 
             {/* Department & Level */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -251,9 +299,9 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
             {/* Fellowship Subgroup */}
             <Input
               id="register-subgroup-input"
-              label="Subgroup (Optional)"
+              label="Fellowship Subgroup (Optional)"
               type="text"
-              placeholder="e.g. Choir, Publicity, Church Mission, Prayer"
+              placeholder="e.g. Choir, Technical, Ushering, Prayer"
               value={subgroup}
               onChange={(e) => setSubgroup(e.target.value)}
               disabled={isLoading}

@@ -72,10 +72,12 @@ describe('Role & Permission Authorization Matrix', () => {
 
     authorizedRoles.forEach((role) => {
       expect(hasPermission(role, 'manage_academic_sessions')).toBe(true);
+      expect(hasPermission(role, 'override_academic_level')).toBe(true);
     });
 
     nonAuthorizedRoles.forEach((role) => {
       expect(hasPermission(role, 'manage_academic_sessions')).toBe(false);
+      expect(hasPermission(role, 'override_academic_level')).toBe(false);
     });
   });
 

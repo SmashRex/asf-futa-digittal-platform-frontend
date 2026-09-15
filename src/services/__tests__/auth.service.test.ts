@@ -22,6 +22,7 @@ describe('Auth Service', () => {
     const res = await authService.register({
       name: 'John Doe',
       email: 'student@futa.edu.ng',
+      password: 'StrongPassword123',
       department: 'Computer Science',
       level: '400 Level',
       programDurationYears: 5,
@@ -40,6 +41,7 @@ describe('Auth Service', () => {
     const res = await authService.register({
       name: 'Alumni Member',
       email: 'alumni@futa.edu.ng',
+      password: 'StrongPassword123',
       department: 'Architecture',
       level: 'Alumni',
     });
@@ -52,12 +54,24 @@ describe('Auth Service', () => {
     const res = await authService.register({
       name: 'Postgraduate Member',
       email: 'pg@futa.edu.ng',
+      password: 'StrongPassword123',
       department: 'Physics',
       level: 'Postgraduate',
     });
 
     expect(typeof res.user.programDurationYears).toBe('number');
     expect(res.user.programDurationYears).toBe(4);
+  });
+
+  it('should authenticate user with email and password via login', async () => {
+    const res = await authService.login({
+      email: 'student@futa.edu.ng',
+      password: 'StrongPassword123',
+    });
+
+    expect(res.token).toBeDefined();
+    expect(res.user.email).toBe('student@futa.edu.ng');
+    expect(authService.getToken()).toBe(res.token);
   });
 
   it('should reject invalid programDurationYears if specified as non 4 or 5', async () => {

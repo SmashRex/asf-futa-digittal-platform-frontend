@@ -9,6 +9,8 @@ import { AdminContextType } from './AdminLayout';
 import { ROLE_PERMISSIONS_MATRIX } from '../../data/adminData';
 import { academicSessionsService } from '../../services/academicSessions/academicSessions.service';
 import { AcademicSession } from '../../types/academicSession';
+import { bibleService } from '../../services/bible/bible.service';
+import { BibleVersion } from '../../types';
 import { 
   Settings, 
   Shield, 
@@ -55,7 +57,22 @@ export const AdminSettings: React.FC = () => {
   const [academicSession, setAcademicSession] = useState('2025/2026 Session');
   const [requireTwoStepReview, setRequireTwoStepReview] = useState(true);
   const [defaultBibleVersion, setDefaultBibleVersion] = useState('KJV');
+  const [availableTranslations, setAvailableTranslations] = useState<BibleVersion[]>([
+    { id: 'kjv', name: 'King James Version', shortName: 'KJV', isPrebundled: true, isDefault: true }
+  ]);
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    bibleService.getTranslations()
+      .then(translations => {
+        if (isMounted && translations && translations.length > 0) {
+          setAvailableTranslations(translations);
+        }
+      })
+      .catch(() => {});
+    return () => { isMounted = false; };
+  }, []);
 
   // Personal Settings State
   const [themePreference, setThemePreference] = useState<'Light' | 'Dark' | 'System'>('Light');
@@ -751,10 +768,16 @@ export const AdminSettings: React.FC = () => {
                 value={defaultBibleVersion}
                 onChange={(e) => setDefaultBibleVersion(e.target.value)}
                 className="w-full p-2.5 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] font-semibold text-[#18181B]"
+                id="default-bible-version-select"
               >
-                <option value="KJV">King James Version (KJV)</option>
-                <option value="NKJV">New King James Version (NKJV)</option>
-                <option value="NIV">New International Version (NIV)</option>
+                {availableTranslations.map(t => {
+                  const val = (t.shortName || t.id).toUpperCase();
+                  return (
+                    <option key={t.id} value={val}>
+                      {t.name} ({val})
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>

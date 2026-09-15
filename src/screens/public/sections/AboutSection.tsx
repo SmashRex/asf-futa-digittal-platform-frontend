@@ -1,6 +1,8 @@
 import React from 'react';
 import { useWebsiteCopy } from '../../../hooks/useWebsiteCopy';
 import { AboutSectionCopy } from '../../../types/websiteCopy';
+import { useMediaPlacement } from '../../../hooks/useMediaPlacement';
+import { ImageWithFallback } from '../../../components/common/ImageWithFallback';
 
 interface AboutSectionProps {
   aboutContent?: AboutSectionCopy;
@@ -9,6 +11,7 @@ interface AboutSectionProps {
 export default function AboutSection({ aboutContent }: AboutSectionProps = {}) {
   const { about: fallbackAbout } = useWebsiteCopy();
   const about = aboutContent || fallbackAbout;
+  const { asset } = useMediaPlacement('public.about.community_photo');
 
   return (
     <section data-section-id="about" className="py-24 bg-white relative">
@@ -17,11 +20,24 @@ export default function AboutSection({ aboutContent }: AboutSectionProps = {}) {
         {/* We Follow Jesus Together */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center mb-32">
           <div className="order-2 lg:order-1 relative">
-            <div className="aspect-[4/3] bg-stone-100 rounded-3xl overflow-hidden shadow-sm relative">
-              <div className="absolute inset-0 flex items-center justify-center text-stone-400">
-                <span className="font-label-caps tracking-widest text-xs uppercase">Community Photo Placeholder</span>
+            {asset && asset.url ? (
+              <div className="rounded-3xl overflow-hidden shadow-sm relative">
+                <ImageWithFallback
+                  src={asset.url}
+                  fallbackType="worship"
+                  preset="card"
+                  aspectRatio="aspect-[4/3]"
+                  alt={asset.altText || 'ASF Community Photo'}
+                  className="w-full h-full"
+                />
               </div>
-            </div>
+            ) : (
+              <div className="aspect-[4/3] bg-stone-100 rounded-3xl overflow-hidden shadow-sm relative">
+                <div className="absolute inset-0 flex items-center justify-center text-stone-400">
+                  <span className="font-label-caps tracking-widest text-xs uppercase">Community Photo Placeholder</span>
+                </div>
+              </div>
+            )}
             {/* Decorative float */}
             <div className="absolute -bottom-8 -right-8 w-48 h-48 bg-[#FEBE56]/20 rounded-full blur-3xl -z-10" />
           </div>

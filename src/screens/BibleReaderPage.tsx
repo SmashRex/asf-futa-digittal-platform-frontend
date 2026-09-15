@@ -48,7 +48,7 @@ export default function BibleReaderPage({
   const [allBooks, setAllBooks] = useState<BibleBookDetail[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const normalizedBookId = normalizeBookId(bookId || 'GEN');
+  const rawBookParam = (bookId || 'genesis').trim();
   const currentChapterNum = parseInt(chapterId || '1', 10);
   const targetVerseNum = verseId ? parseInt(verseId, 10) : undefined;
 
@@ -65,14 +65,25 @@ export default function BibleReaderPage({
         if (!isMounted) return;
         setAllBooks(books);
 
-        const currentBook = await bibleService.getBookById(normalizedBookId, effectiveVersionId);
+        // Find book by exact ID, display name, abbreviations, or fallback normalization
+        const currentBook = books.find(b => 
+          b.id.toLowerCase() === rawBookParam.toLowerCase() ||
+          b.name.toLowerCase() === rawBookParam.toLowerCase() ||
+          (b.abbreviations && b.abbreviations.some(a => a.toLowerCase() === rawBookParam.toLowerCase())) ||
+          b.id.toLowerCase() === normalizeBookId(rawBookParam).toLowerCase()
+        ) || null;
+
         if (!isMounted) return;
         setBook(currentBook);
 
-        if (currentBook) {
-          const ch = currentBook.chapters.find(c => c.number === currentChapterNum) || currentBook.chapters[0] || null;
+        const authoritativeBookId = currentBook ? currentBook.id : rawBookParam;
+
+        try {
+          const ch = await bibleService.getChapter(authoritativeBookId, currentChapterNum, effectiveVersionId);
+          if (!isMounted) return;
           setChapter(ch);
-        } else {
+        } catch {
+          if (!isMounted) return;
           setChapter(null);
         }
       } catch (err) {
@@ -84,18 +95,17 @@ export default function BibleReaderPage({
 
     loadScripture();
     return () => { isMounted = false; };
-  }, [normalizedBookId, currentChapterNum, effectiveVersionId]);
+  }, [rawBookParam, currentChapterNum, effectiveVersionId]);
 
   // Handle previous chapter action
   const handlePrevChapter = () => {
-    if (!book || allBooks.length === 0) return;
-    const currentIdx = book.chapters.findIndex(c => c.number === currentChapterNum);
-    if (currentIdx > 0) {
-      const prevNum = book.chapters[currentIdx - 1].number;
-      navigate(buildBibleRoute(book.id, prevNum));
+    if (!book) return;
+    if (currentChapterNum > 1) {
+      navigate(buildBibleRoute(book.id, currentChapterNum - 1));
     } else {
       // Previous book
-      const bookIdx = allBooks.findIndex(b => b.id === normalizedBookId);
+      const activeBookId = book.id;
+      const bookIdx = allBooks.findIndex(b => b.id.toLowerCase() === activeBookId.toLowerCase());
       if (bookIdx > 0) {
         const prevBook = allBooks[bookIdx - 1];
         const lastChNum = prevBook.chapters[prevBook.chapters.length - 1]?.number || 1;
@@ -106,14 +116,14 @@ export default function BibleReaderPage({
 
   // Handle next chapter action
   const handleNextChapter = () => {
-    if (!book || allBooks.length === 0) return;
-    const currentIdx = book.chapters.findIndex(c => c.number === currentChapterNum);
-    if (currentIdx < book.chapters.length - 1) {
-      const nextNum = book.chapters[currentIdx + 1].number;
-      navigate(buildBibleRoute(book.id, nextNum));
+    if (!book) return;
+    const maxChapters = book.chapters.length || 1;
+    if (currentChapterNum < maxChapters) {
+      navigate(buildBibleRoute(book.id, currentChapterNum + 1));
     } else {
       // Next book
-      const bookIdx = allBooks.findIndex(b => b.id === normalizedBookId);
+      const activeBookId = book.id;
+      const bookIdx = allBooks.findIndex(b => b.id.toLowerCase() === activeBookId.toLowerCase());
       if (bookIdx < allBooks.length - 1) {
         const nextBook = allBooks[bookIdx + 1];
         navigate(buildBibleRoute(nextBook.id, 1));

@@ -24,6 +24,23 @@ export class AcademicSessionsService {
   }
 
   /**
+   * Fetch active academic session: GET /api/academic-sessions/active
+   */
+  async getActiveSession(): Promise<AcademicSession | null> {
+    if (!APP_CONFIG.features.useMockServices) {
+      try {
+        const response = await apiClient.get<AcademicSession>('/academic-sessions/active');
+        return response.data || null;
+      } catch (err: any) {
+        if (err.statusCode === 404 || err.code === 'NOT_FOUND' || err.code === 'NO_ACTIVE_SESSION') return null;
+        throw err;
+      }
+    }
+    const sessions = this.getMockSessions();
+    return sessions.find(s => s.isActive) || null;
+  }
+
+  /**
    * Create a new academic session: POST /api/academic-sessions
    */
   async createAcademicSession(payload: CreateAcademicSessionPayload): Promise<AcademicSession> {
@@ -53,6 +70,40 @@ export class AcademicSessionsService {
   }
 
   /**
+   * Progress academic session: POST /api/academic-sessions/:id/progress
+   */
+  async progressSession(sessionId: string): Promise<ActivateAndProgressResult> {
+    if (!sessionId || !sessionId.trim()) {
+      const err: any = new Error('Session ID is required to execute progression');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+
+    const encodedSessionId = encodeURIComponent(sessionId.trim());
+
+    if (!APP_CONFIG.features.useMockServices) {
+      try {
+        const response = await apiClient.post<ActivateAndProgressResult>(
+          `/academic-sessions/${encodedSessionId}/progress`,
+          {}
+        );
+        return response.data;
+      } catch (err: any) {
+        if (err.statusCode === 404) {
+          const altResponse = await apiClient.post<ActivateAndProgressResult>(
+            `/academic-sessions/${encodedSessionId}/activate-and-progress`,
+            {}
+          );
+          return altResponse.data;
+        }
+        throw err;
+      }
+    }
+
+    return this.activateAndProgress(sessionId);
+  }
+
+  /**
    * Activate academic session and trigger student academic progression:
    * POST /api/academic-sessions/:id/activate-and-progress
    * 
@@ -69,11 +120,22 @@ export class AcademicSessionsService {
     const encodedSessionId = encodeURIComponent(sessionId.trim());
 
     if (!APP_CONFIG.features.useMockServices) {
-      const response = await apiClient.post<ActivateAndProgressResult>(
-        `/academic-sessions/${encodedSessionId}/activate-and-progress`,
-        {}
-      );
-      return response.data;
+      try {
+        const response = await apiClient.post<ActivateAndProgressResult>(
+          `/academic-sessions/${encodedSessionId}/activate-and-progress`,
+          {}
+        );
+        return response.data;
+      } catch (err: any) {
+        if (err.statusCode === 404) {
+          const altResponse = await apiClient.post<ActivateAndProgressResult>(
+            `/academic-sessions/${encodedSessionId}/progress`,
+            {}
+          );
+          return altResponse.data;
+        }
+        throw err;
+      }
     }
 
     // Mock response

@@ -13,5 +13,7 @@ export * from './hymns/hymns.service';
 export * from './fs/fs.service';
 export * from './reminders/reminders.service';
 export * from './content/content.service';
-export * from './users/users.service';
 export * from './image/imageCache.service';
+export * from './academicSessions/academicSessions.service';
+export * from './members/members.service';
+export * from './media/media.service';

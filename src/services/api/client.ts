@@ -32,8 +32,12 @@ export class ApiClient {
       ? 'UNAUTHENTICATED' 
       : response.status === 403 
       ? 'PERMISSION_DENIED' 
+      : response.status === 429
+      ? 'TOO_MANY_REQUESTS'
       : 'HTTP_ERROR';
-    let errorMessage = `API Error ${response.status}: ${response.statusText}`;
+    let errorMessage = response.status === 429
+      ? 'Too many attempts. Please wait a while before trying again.'
+      : `API Error ${response.status}: ${response.statusText}`;
     let errorDetails: unknown = undefined;
 
     try {
@@ -107,11 +111,16 @@ export class ApiClient {
 
   async post<T>(path: string, body?: any): Promise<ApiResponse<T>> {
     try {
+      const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+      const headers: Record<string, string> = { ...(this.getHeaders() as Record<string, string>) };
+      if (isFormData) {
+        delete headers['Content-Type'];
+      }
       const response = await fetch(this.normalizeUrl(path), {
         method: 'POST',
-        headers: this.getHeaders(),
+        headers,
         credentials: 'include',
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: isFormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
       });
       return await this.processResponse<T>(response);
     } catch (err: any) {
@@ -128,11 +137,42 @@ export class ApiClient {
 
   async put<T>(path: string, body: any): Promise<ApiResponse<T>> {
     try {
+      const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+      const headers: Record<string, string> = { ...(this.getHeaders() as Record<string, string>) };
+      if (isFormData) {
+        delete headers['Content-Type'];
+      }
       const response = await fetch(this.normalizeUrl(path), {
         method: 'PUT',
-        headers: this.getHeaders(),
+        headers,
         credentials: 'include',
-        body: JSON.stringify(body),
+        body: isFormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
+      });
+      return await this.processResponse<T>(response);
+    } catch (err: any) {
+      if (err.statusCode && err.code) {
+        throw err;
+      }
+      throw {
+        statusCode: 500,
+        code: 'NETWORK_ERROR',
+        message: err.message || 'Network request failed',
+      } as ApiError;
+    }
+  }
+
+  async patch<T>(path: string, body?: any): Promise<ApiResponse<T>> {
+    try {
+      const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+      const headers: Record<string, string> = { ...(this.getHeaders() as Record<string, string>) };
+      if (isFormData) {
+        delete headers['Content-Type'];
+      }
+      const response = await fetch(this.normalizeUrl(path), {
+        method: 'PATCH',
+        headers,
+        credentials: 'include',
+        body: isFormData ? body : (body !== undefined ? JSON.stringify(body) : undefined),
       });
       return await this.processResponse<T>(response);
     } catch (err: any) {
@@ -149,7 +189,7 @@ export class ApiClient {
 
   async delete<T>(path: string): Promise<ApiResponse<T>> {
     try {
-      const response = await fetch(`${this.baseUrl}${path}`, {
+      const response = await fetch(this.normalizeUrl(path), {
         method: 'DELETE',
         headers: this.getHeaders(),
         credentials: 'include',
