@@ -287,6 +287,136 @@ describe('Auth Service', () => {
       expect(user?.membershipStatus).toBe('Active Student');
       expect(user?.accountStatus).toBe('Active');
       expect(user?.roles).toEqual(['Member']);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/me'),
+        expect.objectContaining({
+          credentials: 'include',
+        })
+      );
+    });
+
+    it('should authenticate immediately on registration with 201 response and credentials include', async () => {
+      const registrationBackendResponse = {
+        success: true,
+        data: {
+          id: 'usr_reg_123',
+          email: 'newuser@futa.edu.ng',
+          name: 'New Registered Member',
+          department: 'Computer Science',
+          academicLevel: '300 Level',
+          subgroup: null,
+          roles: ['Member'],
+          message: 'Registration successful.',
+        },
+      };
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        status: 201,
+        json: async () => registrationBackendResponse,
+      } as Response);
+
+      const result = await authService.register({
+        name: 'New Registered Member',
+        email: 'newuser@futa.edu.ng',
+        password: 'password1234',
+        department: 'Computer Science',
+        level: '300 Level',
+        academicLevel: '300 Level',
+        programDurationYears: 5,
+      });
+
+      expect(result.user).toBeDefined();
+      expect(result.user.id).toBe('usr_reg_123');
+      expect(result.user.email).toBe('newuser@futa.edu.ng');
+      expect(result.user.department).toBe('Computer Science');
+      expect(result.user.accountStatus).toBe('Active');
+      expect(result.user.membershipStatus).toBe('Active Student');
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/auth/register'),
+        expect.objectContaining({
+          credentials: 'include',
+        })
+      );
+    });
+
+    it('should clear cached session on 401 response from getMe()', async () => {
+      localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify({
+        id: 'usr_cached',
+        name: 'Cached User',
+        email: 'cached@futa.edu.ng',
+        department: 'Physics',
+        academicLevel: '100 Level',
+        level: '100 Level',
+        roles: ['Member'],
+        role: 'Member',
+        accountStatus: 'Active',
+        membershipStatus: 'Active Student',
+        isAlumni: false,
+      }));
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: { code: 'UNAUTHORIZED' } }),
+      } as Response);
+
+      const user = await authService.getMe();
+      expect(user).toBeNull();
+      expect(localStorage.getItem(APP_CONFIG.storageKeys.userSession)).toBeNull();
+    });
+
+    it('should not log user out on 403 response from getMe(), preserving cached session', async () => {
+      const cachedUser = {
+        id: 'usr_cached_403',
+        name: 'Cached User 403',
+        email: 'cached403@futa.edu.ng',
+        department: 'Physics',
+        academicLevel: '100 Level',
+        level: '100 Level',
+        roles: ['Member'],
+        role: 'Member',
+        accountStatus: 'Active',
+        membershipStatus: 'Active Student',
+        isAlumni: false,
+      };
+
+      localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(cachedUser));
+
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 403,
+        json: async () => ({ error: { code: 'FORBIDDEN' } }),
+      } as Response);
+
+      const user = await authService.getMe();
+      expect(user).not.toBeNull();
+      expect(user?.id).toBe('usr_cached_403');
+      expect(localStorage.getItem(APP_CONFIG.storageKeys.userSession)).not.toBeNull();
+    });
+
+    it('should fallback to cached session on network transport failure without destroying session', async () => {
+      const cachedUser = {
+        id: 'usr_cached_offline',
+        name: 'Cached Offline User',
+        email: 'offline@futa.edu.ng',
+        department: 'Mathematics',
+        academicLevel: '200 Level',
+        level: '200 Level',
+        roles: ['Member'],
+        role: 'Member',
+        accountStatus: 'Active',
+        membershipStatus: 'Active Student',
+        isAlumni: false,
+      };
+
+      localStorage.setItem(APP_CONFIG.storageKeys.userSession, JSON.stringify(cachedUser));
+
+      global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+      const user = await authService.getMe();
+      expect(user).not.toBeNull();
+      expect(user?.id).toBe('usr_cached_offline');
     });
   });
 });

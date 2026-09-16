@@ -92,13 +92,16 @@ function AppContent() {
   const devState = useDevState();
 
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
-    // Attempt local storage recall for session
     try {
-      const saved = localStorage.getItem('asf_user_session');
-      return saved ? JSON.parse(saved) : null;
+      return authService.getCurrentUser();
     } catch {
       return null;
     }
+  });
+
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(() => {
+    // When using the live backend and no initial cached user is present, mark loading
+    return !APP_CONFIG.features.useMockServices && !authService.getCurrentUser();
   });
 
   // Verify backend session on mount in production mode
@@ -111,9 +114,23 @@ function AppContent() {
             setCurrentUser(user);
           }
         })
-        .catch(() => {
+        .catch((err) => {
           if (isSubscribed) {
-            setCurrentUser(null);
+            if (err?.code === 'INVALID_USER_CONTRACT') {
+              console.error('[App] Auth contract violation on /api/auth/me:', err);
+            }
+            // Preserve cached session for network issues or 403
+            const cached = authService.getCurrentUser();
+            if (cached) {
+              setCurrentUser(cached);
+            } else {
+              setCurrentUser(null);
+            }
+          }
+        })
+        .finally(() => {
+          if (isSubscribed) {
+            setIsAuthLoading(false);
           }
         });
 
@@ -224,10 +241,10 @@ function AppContent() {
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('asf_user_session', JSON.stringify(currentUser));
-    } else {
+    } else if (!isAuthLoading) {
       localStorage.removeItem('asf_user_session');
     }
-  }, [currentUser]);
+  }, [currentUser, isAuthLoading]);
 
   useEffect(() => {
     localStorage.setItem('asf_notifications', JSON.stringify(notifications));
@@ -406,6 +423,14 @@ function AppContent() {
 
   // Render Layout Helper: wraps screens with Header and Drawer when authenticated
   const renderLayout = (component: React.ReactNode, options: { hideHeader?: boolean } = {}) => {
+    if (isAuthLoading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-primary)]">
+          <div className="w-8 h-8 border-2 border-[var(--color-primary)] border-t-transparent rounded-full animate-spin" />
+        </div>
+      );
+    }
+
     if (!currentUser) {
       // Unauthenticated guard redirect
       return <Navigate to="/" replace />;
@@ -451,19 +476,19 @@ function AppContent() {
       {/* Unauthenticated / Landing Screens for Portal */}
       <Route 
         path="/portal" 
-        element={currentUser ? <Navigate to="/home" replace /> : <Welcome />} 
+        element={isAuthLoading ? null : (currentUser ? <Navigate to="/home" replace /> : <Welcome />)} 
       />
       <Route 
         path="/sign-in" 
-        element={currentUser ? <Navigate to="/home" replace /> : <SignIn onLoginSuccess={handleLoginSuccess} />} 
+        element={isAuthLoading ? null : (currentUser ? <Navigate to="/home" replace /> : <SignIn onLoginSuccess={handleLoginSuccess} />)} 
       />
       <Route 
         path="/register" 
-        element={currentUser ? <Navigate to="/home" replace /> : <Register onLoginSuccess={handleLoginSuccess} />} 
+        element={isAuthLoading ? null : (currentUser ? <Navigate to="/home" replace /> : <Register onLoginSuccess={handleLoginSuccess} />)} 
       />
       <Route 
         path="/check-email" 
-        element={currentUser ? <Navigate to="/home" replace /> : <CheckEmail />} 
+        element={isAuthLoading ? null : (currentUser ? <Navigate to="/home" replace /> : <CheckEmail />)} 
       />
       <Route 
         path="/welcome-back" 
