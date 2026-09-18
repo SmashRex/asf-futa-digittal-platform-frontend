@@ -203,6 +203,30 @@ export class MembersService {
   }
 
   /**
+   * Update member subgroup:
+   * PATCH /api/members/:id/subgroup
+   * Allowed roles: Publicity Coordinator, President / Executive, Technical Administrator
+   * Payload: { subgroup: string }
+   */
+  async updateSubgroup(id: string, subgroup: string): Promise<AdminMember> {
+    const trimmed = (subgroup || '').trim();
+    const payload = { subgroup: trimmed };
+
+    if (!APP_CONFIG.features.useMockServices) {
+      const response = await apiClient.patch<any>(`/members/${encodeURIComponent(id)}/subgroup`, payload);
+      const raw = response.data?.data || response.data;
+      return this.normalizeMember(raw);
+    }
+
+    const member = await this.getMemberById(id);
+    const updated: AdminMember = {
+      ...member,
+      subgroup: trimmed || 'General Assembly',
+    };
+    return updated;
+  }
+
+  /**
    * Reset member password:
    * PATCH /api/members/:id/reset-password
    * Allowed roles: Technical Administrator, President / Executive

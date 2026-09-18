@@ -17,7 +17,7 @@ describe('bible.config utilities', () => {
     const ref = parseBibleReference('John 3:16');
     expect(ref).not.toBeNull();
     expect(ref?.book).toBe('John');
-    expect(ref?.bookId).toBe('JHN');
+    expect(ref?.bookId).toBe('john');
     expect(ref?.chapter).toBe(3);
     expect(ref?.verseStart).toBe(16);
     expect(ref?.verseEnd).toBe(16);
@@ -27,7 +27,7 @@ describe('bible.config utilities', () => {
     const ref = parseBibleReference('Matthew 5:14-16');
     expect(ref).not.toBeNull();
     expect(ref?.book).toBe('Matthew');
-    expect(ref?.bookId).toBe('MAT');
+    expect(ref?.bookId).toBe('matthew');
     expect(ref?.chapter).toBe(5);
     expect(ref?.verseStart).toBe(14);
     expect(ref?.verseEnd).toBe(16);
@@ -44,16 +44,16 @@ describe('bible.config utilities', () => {
   });
 
   it('normalizes book names and abbreviations to standard IDs', () => {
-    expect(normalizeBookId('Genesis')).toBe('GEN');
-    expect(normalizeBookId('gen')).toBe('GEN');
-    expect(normalizeBookId('1 Corinthians')).toBe('1CO');
-    expect(normalizeBookId('1Cor')).toBe('1CO');
-    expect(normalizeBookId('Rev')).toBe('REV');
+    expect(normalizeBookId('Genesis')).toBe('genesis');
+    expect(normalizeBookId('gen')).toBe('genesis');
+    expect(normalizeBookId('1 Corinthians')).toBe('1-corinthians');
+    expect(normalizeBookId('1Cor')).toBe('1-corinthians');
+    expect(normalizeBookId('Rev')).toBe('revelation');
   });
 
   it('builds canonical routing paths for Holy Bible', () => {
-    expect(buildBibleRoute('JHN', 3)).toBe('/bible/JHN/3');
-    expect(buildBibleRoute('John', 3, 16)).toBe('/bible/JHN/3/16');
+    expect(buildBibleRoute('john', 3)).toBe('/bible/john/3');
+    expect(buildBibleRoute('John', 3, 16)).toBe('/bible/john/3/16');
   });
 
   it('builds canonical routing paths for Bible Study', () => {

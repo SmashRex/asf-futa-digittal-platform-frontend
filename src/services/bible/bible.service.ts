@@ -13,7 +13,7 @@ import {
   BibleReference 
 } from '../../types';
 import { mockBibleBooks, mockBibleBooksWEB, mockBibleVersions, searchBible } from '../../data/bibleData';
-import { normalizeBookId, parseBibleReference, BIBLE_BOOKS_CATALOG } from '../../config/bible.config';
+import { normalizeBookId, parseBibleReference, getBookNameById, getTestamentByBookId } from '../../config/bible.config';
 import { APP_CONFIG } from '../../config/app.config';
 import { apiClient } from '../api/client';
 
@@ -30,16 +30,23 @@ export const bibleService = {
     const res = await apiClient.get<any>('/bible/books');
     const rawList = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : res.data?.books || []);
     if (Array.isArray(rawList) && rawList.length > 0) {
-      return rawList.map((b: any) => ({
-        id: b.bookId || b.id || b.code || normalizeBookId(b.name),
-        name: b.name || b.title,
-        testament: b.testament || 'Old',
-        chapters: Array.isArray(b.chapters) ? b.chapters : Array.from({ length: b.chaptersCount || b.totalChapters || 1 }, (_, i) => ({
-          number: i + 1,
-          verses: []
-        })),
-        totalChapters: b.chaptersCount || b.totalChapters || (Array.isArray(b.chapters) ? b.chapters.length : 1),
-      }));
+      return rawList.map((b: any) => {
+        const canonicalId = (b.id || b.bookId || b.code || normalizeBookId(b.name || '')).toLowerCase();
+        const totalCh = Number(b.chapterCount ?? b.chaptersCount ?? b.totalChapters ?? (Array.isArray(b.chapters) ? b.chapters.length : 1)) || 1;
+        return {
+          id: canonicalId,
+          name: b.name || b.title || getBookNameById(canonicalId),
+          testament: b.testament || (getTestamentByBookId(canonicalId) || 'Old'),
+          chapterCount: totalCh,
+          totalChapters: totalCh,
+          chapters: Array.isArray(b.chapters) && b.chapters.length > 0
+            ? b.chapters
+            : Array.from({ length: totalCh }, (_, i) => ({
+                number: i + 1,
+                verses: []
+              })),
+        };
+      });
     }
     return [];
   },
@@ -54,7 +61,11 @@ export const bibleService = {
       return source.find(b => b.id.toLowerCase() === normId.toLowerCase() || b.name.toLowerCase() === bookIdOrName.toLowerCase()) || null;
     }
     const books = await this.getBooks(versionId);
-    return books.find(b => b.id.toLowerCase() === normId.toLowerCase() || b.id.toLowerCase() === bookIdOrName.toLowerCase() || b.name.toLowerCase() === bookIdOrName.toLowerCase()) || null;
+    return books.find(b => 
+      b.id.toLowerCase() === normId.toLowerCase() || 
+      b.id.toLowerCase() === bookIdOrName.toLowerCase() || 
+      b.name.toLowerCase() === bookIdOrName.toLowerCase()
+    ) || null;
   },
 
   /**
@@ -63,7 +74,7 @@ export const bibleService = {
    * Supports optional query parameters:
    *   ?verseStart={verseStart}
    *   ?verseStart={verseStart}&verseEnd={verseEnd} (single verse omits verseEnd)
-   * Example: GET /api/bible/KJV/john/3
+   * Example: GET /api/bible/KJV/genesis/1
    */
   async getChapter(
     bookIdOrName: string, 
@@ -72,17 +83,7 @@ export const bibleService = {
     options?: { verseStart?: number; verseEnd?: number }
   ): Promise<BibleChapterDetail | null> {
     const translationId = (versionId || 'KJV').toUpperCase();
-
-    // Use the exact book ID without reconstructing or overwriting with 3-letter catalog ID
-    let authoritativeBookId = bookIdOrName.trim();
-    if (authoritativeBookId.includes(' ')) {
-      const matchedCatalog = BIBLE_BOOKS_CATALOG.find(b => 
-        b.name.toLowerCase() === authoritativeBookId.toLowerCase()
-      );
-      if (matchedCatalog) {
-        authoritativeBookId = matchedCatalog.name.toLowerCase().replace(/\s+/g, '-');
-      }
-    }
+    const authoritativeBookId = normalizeBookId(bookIdOrName);
 
     if (APP_CONFIG.features.useMockServices) {
       const book = await this.getBookById(authoritativeBookId, versionId);
@@ -164,7 +165,8 @@ export const bibleService = {
     translationId?: string;
   }): Promise<BibleChapterDetail | null> {
     const translationId = params.translationId || 'KJV';
-    return this.getChapter(params.bookId, params.chapter, translationId, {
+    const bookId = normalizeBookId(params.bookId);
+    return this.getChapter(bookId, params.chapter, translationId, {
       verseStart: params.verseStart,
       verseEnd: params.verseEnd,
     });

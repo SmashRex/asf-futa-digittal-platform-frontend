@@ -6,83 +6,84 @@
 import { BibleBookDetail, BibleReference, BibleVersion } from '../types';
 
 export interface BibleBookMeta {
-  id: string; // e.g. "GEN"
+  id: string; // e.g. "genesis", "song-of-solomon", "1-corinthians"
   name: string; // e.g. "Genesis"
   testament: 'Old' | 'New';
-  chaptersCount: number;
+  chapterCount: number;
+  chaptersCount?: number;
   abbreviations: string[];
 }
 
 export const BIBLE_BOOKS_CATALOG: BibleBookMeta[] = [
-  // Old Testament
-  { id: 'GEN', name: 'Genesis', testament: 'Old', chaptersCount: 50, abbreviations: ['gen', 'ge', 'gn'] },
-  { id: 'EXO', name: 'Exodus', testament: 'Old', chaptersCount: 40, abbreviations: ['exo', 'ex', 'exod'] },
-  { id: 'LEV', name: 'Leviticus', testament: 'Old', chaptersCount: 27, abbreviations: ['lev', 'le', 'lv'] },
-  { id: 'NUM', name: 'Numbers', testament: 'Old', chaptersCount: 36, abbreviations: ['num', 'nu', 'nm', 'nb'] },
-  { id: 'DEU', name: 'Deuteronomy', testament: 'Old', chaptersCount: 34, abbreviations: ['deu', 'dt', 'deut'] },
-  { id: 'JOS', name: 'Joshua', testament: 'Old', chaptersCount: 24, abbreviations: ['jos', 'josh'] },
-  { id: 'JDG', name: 'Judges', testament: 'Old', chaptersCount: 21, abbreviations: ['jdg', 'judg', 'jgs'] },
-  { id: 'RUT', name: 'Ruth', testament: 'Old', chaptersCount: 4, abbreviations: ['rut', 'rth', 'ru'] },
-  { id: '1SA', name: '1 Samuel', testament: 'Old', chaptersCount: 31, abbreviations: ['1sa', '1sam', '1 s', '1 samuel'] },
-  { id: '2SA', name: '2 Samuel', testament: 'Old', chaptersCount: 24, abbreviations: ['2sa', '2sam', '2 s', '2 samuel'] },
-  { id: '1KI', name: '1 Kings', testament: 'Old', chaptersCount: 22, abbreviations: ['1ki', '1kgs', '1 kings'] },
-  { id: '2KI', name: '2 Kings', testament: 'Old', chaptersCount: 25, abbreviations: ['2ki', '2kgs', '2 kings'] },
-  { id: '1CH', name: '1 Chronicles', testament: 'Old', chaptersCount: 29, abbreviations: ['1ch', '1chr', '1 chron'] },
-  { id: '2CH', name: '2 Chronicles', testament: 'Old', chaptersCount: 36, abbreviations: ['2ch', '2chr', '2 chron'] },
-  { id: 'EZR', name: 'Ezra', testament: 'Old', chaptersCount: 10, abbreviations: ['ezr', 'ez'] },
-  { id: 'NEH', name: 'Nehemiah', testament: 'Old', chaptersCount: 13, abbreviations: ['neh', 'ne'] },
-  { id: 'EST', name: 'Esther', testament: 'Old', chaptersCount: 10, abbreviations: ['est', 'esth'] },
-  { id: 'JOB', name: 'Job', testament: 'Old', chaptersCount: 42, abbreviations: ['job', 'jb'] },
-  { id: 'PSA', name: 'Psalms', testament: 'Old', chaptersCount: 150, abbreviations: ['psa', 'ps', 'psalm', 'psalms'] },
-  { id: 'PRO', name: 'Proverbs', testament: 'Old', chaptersCount: 31, abbreviations: ['pro', 'prv', 'prov'] },
-  { id: 'ECC', name: 'Ecclesiastes', testament: 'Old', chaptersCount: 12, abbreviations: ['ecc', 'eccl', 'qoh'] },
-  { id: 'SNG', name: 'Song of Solomon', testament: 'Old', chaptersCount: 8, abbreviations: ['sng', 'song', 'canticles'] },
-  { id: 'ISA', name: 'Isaiah', testament: 'Old', chaptersCount: 66, abbreviations: ['isa', 'is'] },
-  { id: 'JER', name: 'Jeremiah', testament: 'Old', chaptersCount: 52, abbreviations: ['jer', 'jr'] },
-  { id: 'LAM', name: 'Lamentations', testament: 'Old', chaptersCount: 5, abbreviations: ['lam', 'la'] },
-  { id: 'EZK', name: 'Ezekiel', testament: 'Old', chaptersCount: 48, abbreviations: ['ezk', 'ezek', 'eze'] },
-  { id: 'DAN', name: 'Daniel', testament: 'Old', chaptersCount: 12, abbreviations: ['dan', 'da', 'dn'] },
-  { id: 'HOS', name: 'Hosea', testament: 'Old', chaptersCount: 14, abbreviations: ['hos', 'ho'] },
-  { id: 'JOL', name: 'Joel', testament: 'Old', chaptersCount: 3, abbreviations: ['jol', 'joe', 'jl'] },
-  { id: 'AMO', name: 'Amos', testament: 'Old', chaptersCount: 9, abbreviations: ['amo', 'am'] },
-  { id: 'OBA', name: 'Obadiah', testament: 'Old', chaptersCount: 1, abbreviations: ['oba', 'ob'] },
-  { id: 'JON', name: 'Jonah', testament: 'Old', chaptersCount: 4, abbreviations: ['jon', 'jnh'] },
-  { id: 'MIC', name: 'Micah', testament: 'Old', chaptersCount: 7, abbreviations: ['mic', 'mc'] },
-  { id: 'NAM', name: 'Nahum', testament: 'Old', chaptersCount: 3, abbreviations: ['nam', 'nah', 'na'] },
-  { id: 'HAB', name: 'Habakkuk', testament: 'Old', chaptersCount: 3, abbreviations: ['hab', 'hb'] },
-  { id: 'ZEP', name: 'Zephaniah', testament: 'Old', chaptersCount: 3, abbreviations: ['zep', 'zeph', 'zp'] },
-  { id: 'HAG', name: 'Haggai', testament: 'Old', chaptersCount: 2, abbreviations: ['hag', 'hg'] },
-  { id: 'ZEC', name: 'Zechariah', testament: 'Old', chaptersCount: 14, abbreviations: ['zec', 'zech', 'zc'] },
-  { id: 'MAL', name: 'Malachi', testament: 'Old', chaptersCount: 4, abbreviations: ['mal', 'ml'] },
+  // Old Testament (39 books)
+  { id: 'genesis', name: 'Genesis', testament: 'Old', chapterCount: 50, chaptersCount: 50, abbreviations: ['gen', 'ge', 'gn'] },
+  { id: 'exodus', name: 'Exodus', testament: 'Old', chapterCount: 40, chaptersCount: 40, abbreviations: ['exo', 'ex', 'exod'] },
+  { id: 'leviticus', name: 'Leviticus', testament: 'Old', chapterCount: 27, chaptersCount: 27, abbreviations: ['lev', 'le', 'lv'] },
+  { id: 'numbers', name: 'Numbers', testament: 'Old', chapterCount: 36, chaptersCount: 36, abbreviations: ['num', 'nu', 'nm', 'nb'] },
+  { id: 'deuteronomy', name: 'Deuteronomy', testament: 'Old', chapterCount: 34, chaptersCount: 34, abbreviations: ['deu', 'dt', 'deut'] },
+  { id: 'joshua', name: 'Joshua', testament: 'Old', chapterCount: 24, chaptersCount: 24, abbreviations: ['jos', 'josh'] },
+  { id: 'judges', name: 'Judges', testament: 'Old', chapterCount: 21, chaptersCount: 21, abbreviations: ['jdg', 'judg', 'jgs'] },
+  { id: 'ruth', name: 'Ruth', testament: 'Old', chapterCount: 4, chaptersCount: 4, abbreviations: ['rut', 'rth', 'ru'] },
+  { id: '1-samuel', name: '1 Samuel', testament: 'Old', chapterCount: 31, chaptersCount: 31, abbreviations: ['1sa', '1sam', '1 s', '1 samuel', '1-samuel', '1 sam', '1samuel'] },
+  { id: '2-samuel', name: '2 Samuel', testament: 'Old', chapterCount: 24, chaptersCount: 24, abbreviations: ['2sa', '2sam', '2 s', '2 samuel', '2-samuel', '2 sam', '2samuel'] },
+  { id: '1-kings', name: '1 Kings', testament: 'Old', chapterCount: 22, chaptersCount: 22, abbreviations: ['1ki', '1kgs', '1 kings', '1-kings', '1 kgs', '1kings'] },
+  { id: '2-kings', name: '2 Kings', testament: 'Old', chapterCount: 25, chaptersCount: 25, abbreviations: ['2ki', '2kgs', '2 kings', '2-kings', '2 kgs', '2kings'] },
+  { id: '1-chronicles', name: '1 Chronicles', testament: 'Old', chapterCount: 29, chaptersCount: 29, abbreviations: ['1ch', '1chr', '1 chron', '1 chronicles', '1-chronicles', '1chronicles'] },
+  { id: '2-chronicles', name: '2 Chronicles', testament: 'Old', chapterCount: 36, chaptersCount: 36, abbreviations: ['2ch', '2chr', '2 chron', '2 chronicles', '2-chronicles', '2chronicles'] },
+  { id: 'ezra', name: 'Ezra', testament: 'Old', chapterCount: 10, chaptersCount: 10, abbreviations: ['ezr', 'ez'] },
+  { id: 'nehemiah', name: 'Nehemiah', testament: 'Old', chapterCount: 13, chaptersCount: 13, abbreviations: ['neh', 'ne'] },
+  { id: 'esther', name: 'Esther', testament: 'Old', chapterCount: 10, chaptersCount: 10, abbreviations: ['est', 'esth'] },
+  { id: 'job', name: 'Job', testament: 'Old', chapterCount: 42, chaptersCount: 42, abbreviations: ['job', 'jb'] },
+  { id: 'psalms', name: 'Psalms', testament: 'Old', chapterCount: 150, chaptersCount: 150, abbreviations: ['psa', 'ps', 'psalm', 'psalms'] },
+  { id: 'proverbs', name: 'Proverbs', testament: 'Old', chapterCount: 31, chaptersCount: 31, abbreviations: ['pro', 'prv', 'prov'] },
+  { id: 'ecclesiastes', name: 'Ecclesiastes', testament: 'Old', chapterCount: 12, chaptersCount: 12, abbreviations: ['ecc', 'eccl', 'qoh'] },
+  { id: 'song-of-solomon', name: 'Song of Solomon', testament: 'Old', chapterCount: 8, chaptersCount: 8, abbreviations: ['sng', 'song', 'canticles', 'song of songs', 'song-of-solomon', 'sos'] },
+  { id: 'isaiah', name: 'Isaiah', testament: 'Old', chapterCount: 66, chaptersCount: 66, abbreviations: ['isa', 'is'] },
+  { id: 'jeremiah', name: 'Jeremiah', testament: 'Old', chapterCount: 52, chaptersCount: 52, abbreviations: ['jer', 'jr'] },
+  { id: 'lamentations', name: 'Lamentations', testament: 'Old', chapterCount: 5, chaptersCount: 5, abbreviations: ['lam', 'la'] },
+  { id: 'ezekiel', name: 'Ezekiel', testament: 'Old', chapterCount: 48, chaptersCount: 48, abbreviations: ['ezk', 'ezek', 'eze'] },
+  { id: 'daniel', name: 'Daniel', testament: 'Old', chapterCount: 12, chaptersCount: 12, abbreviations: ['dan', 'da', 'dn'] },
+  { id: 'hosea', name: 'Hosea', testament: 'Old', chapterCount: 14, chaptersCount: 14, abbreviations: ['hos', 'ho'] },
+  { id: 'joel', name: 'Joel', testament: 'Old', chapterCount: 3, chaptersCount: 3, abbreviations: ['jol', 'joe', 'jl'] },
+  { id: 'amos', name: 'Amos', testament: 'Old', chapterCount: 9, chaptersCount: 9, abbreviations: ['amo', 'am'] },
+  { id: 'obadiah', name: 'Obadiah', testament: 'Old', chapterCount: 1, chaptersCount: 1, abbreviations: ['oba', 'ob'] },
+  { id: 'jonah', name: 'Jonah', testament: 'Old', chapterCount: 4, chaptersCount: 4, abbreviations: ['jon', 'jnh'] },
+  { id: 'micah', name: 'Micah', testament: 'Old', chapterCount: 7, chaptersCount: 7, abbreviations: ['mic', 'mc'] },
+  { id: 'nahum', name: 'Nahum', testament: 'Old', chapterCount: 3, chaptersCount: 3, abbreviations: ['nam', 'nah', 'na'] },
+  { id: 'habakkuk', name: 'Habakkuk', testament: 'Old', chapterCount: 3, chaptersCount: 3, abbreviations: ['hab', 'hb'] },
+  { id: 'zephaniah', name: 'Zephaniah', testament: 'Old', chapterCount: 3, chaptersCount: 3, abbreviations: ['zep', 'zeph', 'zp'] },
+  { id: 'haggai', name: 'Haggai', testament: 'Old', chapterCount: 2, chaptersCount: 2, abbreviations: ['hag', 'hg'] },
+  { id: 'zechariah', name: 'Zechariah', testament: 'Old', chapterCount: 14, chaptersCount: 14, abbreviations: ['zec', 'zech', 'zc'] },
+  { id: 'malachi', name: 'Malachi', testament: 'Old', chapterCount: 4, chaptersCount: 4, abbreviations: ['mal', 'ml'] },
 
-  // New Testament
-  { id: 'MAT', name: 'Matthew', testament: 'New', chaptersCount: 28, abbreviations: ['mat', 'matt', 'mt'] },
-  { id: 'MRK', name: 'Mark', testament: 'New', chaptersCount: 16, abbreviations: ['mrk', 'mark', 'mk'] },
-  { id: 'LUK', name: 'Luke', testament: 'New', chaptersCount: 24, abbreviations: ['luk', 'lk'] },
-  { id: 'JHN', name: 'John', testament: 'New', chaptersCount: 21, abbreviations: ['jhn', 'john', 'jn'] },
-  { id: 'ACT', name: 'Acts', testament: 'New', chaptersCount: 28, abbreviations: ['act', 'acts', 'ac'] },
-  { id: 'ROM', name: 'Romans', testament: 'New', chaptersCount: 16, abbreviations: ['rom', 'ro', 'rm'] },
-  { id: '1CO', name: '1 Corinthians', testament: 'New', chaptersCount: 16, abbreviations: ['1co', '1cor', '1 corinthians'] },
-  { id: '2CO', name: '2 Corinthians', testament: 'New', chaptersCount: 13, abbreviations: ['2co', '2cor', '2 corinthians'] },
-  { id: 'GAL', name: 'Galatians', testament: 'New', chaptersCount: 6, abbreviations: ['gal', 'ga'] },
-  { id: 'EPH', name: 'Ephesians', testament: 'New', chaptersCount: 6, abbreviations: ['eph', 'ep'] },
-  { id: 'PHP', name: 'Philippians', testament: 'New', chaptersCount: 4, abbreviations: ['php', 'phil', 'pp'] },
-  { id: 'COL', name: 'Colossians', testament: 'New', chaptersCount: 4, abbreviations: ['col', 'co'] },
-  { id: '1TH', name: '1 Thessalonians', testament: 'New', chaptersCount: 5, abbreviations: ['1th', '1thess', '1 thessalonians'] },
-  { id: '2TH', name: '2 Thessalonians', testament: 'New', chaptersCount: 3, abbreviations: ['2th', '2thess', '2 thessalonians'] },
-  { id: '1TI', name: '1 Timothy', testament: 'New', chaptersCount: 6, abbreviations: ['1ti', '1tim', '1 timothy'] },
-  { id: '2TI', name: '2 Timothy', testament: 'New', chaptersCount: 4, abbreviations: ['2ti', '2tim', '2 timothy'] },
-  { id: 'TIT', name: 'Titus', testament: 'New', chaptersCount: 3, abbreviations: ['tit', 'ti'] },
-  { id: 'PHM', name: 'Philemon', testament: 'New', chaptersCount: 1, abbreviations: ['phm', 'phlm'] },
-  { id: 'HEB', name: 'Hebrews', testament: 'New', chaptersCount: 13, abbreviations: ['heb', 'he'] },
-  { id: 'JAS', name: 'James', testament: 'New', chaptersCount: 5, abbreviations: ['jas', 'jam', 'jm'] },
-  { id: '1PE', name: '1 Peter', testament: 'New', chaptersCount: 5, abbreviations: ['1pe', '1pet', '1 peter'] },
-  { id: '2PE', name: '2 Peter', testament: 'New', chaptersCount: 3, abbreviations: ['2pe', '2pet', '2 peter'] },
-  { id: '1JN', name: '1 John', testament: 'New', chaptersCount: 5, abbreviations: ['1jn', '1john', '1 jn'] },
-  { id: '2JN', name: '2 John', testament: 'New', chaptersCount: 1, abbreviations: ['2jn', '2john', '2 jn'] },
-  { id: '3JN', name: '3 John', testament: 'New', chaptersCount: 1, abbreviations: ['3jn', '3john', '3 jn'] },
-  { id: 'JUD', name: 'Jude', testament: 'New', chaptersCount: 1, abbreviations: ['jud', 'jude', 'jd'] },
-  { id: 'REV', name: 'Revelation', testament: 'New', chaptersCount: 22, abbreviations: ['rev', 're', 'apocalypse'] }
+  // New Testament (27 books)
+  { id: 'matthew', name: 'Matthew', testament: 'New', chapterCount: 28, chaptersCount: 28, abbreviations: ['mat', 'matt', 'mt'] },
+  { id: 'mark', name: 'Mark', testament: 'New', chapterCount: 16, chaptersCount: 16, abbreviations: ['mrk', 'mark', 'mk'] },
+  { id: 'luke', name: 'Luke', testament: 'New', chapterCount: 24, chaptersCount: 24, abbreviations: ['luk', 'lk'] },
+  { id: 'john', name: 'John', testament: 'New', chapterCount: 21, chaptersCount: 21, abbreviations: ['jhn', 'john', 'jn'] },
+  { id: 'acts', name: 'Acts', testament: 'New', chapterCount: 28, chaptersCount: 28, abbreviations: ['act', 'acts', 'ac'] },
+  { id: 'romans', name: 'Romans', testament: 'New', chapterCount: 16, chaptersCount: 16, abbreviations: ['rom', 'ro', 'rm'] },
+  { id: '1-corinthians', name: '1 Corinthians', testament: 'New', chapterCount: 16, chaptersCount: 16, abbreviations: ['1co', '1cor', '1 cor', '1 corinthians', '1-corinthians', '1corinthians'] },
+  { id: '2-corinthians', name: '2 Corinthians', testament: 'New', chapterCount: 13, chaptersCount: 13, abbreviations: ['2co', '2cor', '2 cor', '2 corinthians', '2-corinthians', '2corinthians'] },
+  { id: 'galatians', name: 'Galatians', testament: 'New', chapterCount: 6, chaptersCount: 6, abbreviations: ['gal', 'ga'] },
+  { id: 'ephesians', name: 'Ephesians', testament: 'New', chapterCount: 6, chaptersCount: 6, abbreviations: ['eph', 'ep'] },
+  { id: 'philippians', name: 'Philippians', testament: 'New', chapterCount: 4, chaptersCount: 4, abbreviations: ['php', 'phil', 'pp'] },
+  { id: 'colossians', name: 'Colossians', testament: 'New', chapterCount: 4, chaptersCount: 4, abbreviations: ['col', 'co'] },
+  { id: '1-thessalonians', name: '1 Thessalonians', testament: 'New', chapterCount: 5, chaptersCount: 5, abbreviations: ['1th', '1thess', '1 thess', '1 thessalonians', '1-thessalonians', '1thessalonians'] },
+  { id: '2-thessalonians', name: '2 Thessalonians', testament: 'New', chapterCount: 3, chaptersCount: 3, abbreviations: ['2th', '2thess', '2 thess', '2 thessalonians', '2-thessalonians', '2thessalonians'] },
+  { id: '1-timothy', name: '1 Timothy', testament: 'New', chapterCount: 6, chaptersCount: 6, abbreviations: ['1ti', '1tim', '1 tim', '1 timothy', '1-timothy', '1timothy'] },
+  { id: '2-timothy', name: '2 Timothy', testament: 'New', chapterCount: 4, chaptersCount: 4, abbreviations: ['2ti', '2tim', '2 tim', '2 timothy', '2-timothy', '2timothy'] },
+  { id: 'titus', name: 'Titus', testament: 'New', chapterCount: 3, chaptersCount: 3, abbreviations: ['tit', 'ti'] },
+  { id: 'philemon', name: 'Philemon', testament: 'New', chapterCount: 1, chaptersCount: 1, abbreviations: ['phm', 'phlm'] },
+  { id: 'hebrews', name: 'Hebrews', testament: 'New', chapterCount: 13, chaptersCount: 13, abbreviations: ['heb', 'he'] },
+  { id: 'james', name: 'James', testament: 'New', chapterCount: 5, chaptersCount: 5, abbreviations: ['jas', 'jam', 'jm'] },
+  { id: '1-peter', name: '1 Peter', testament: 'New', chapterCount: 5, chaptersCount: 5, abbreviations: ['1pe', '1pet', '1 pet', '1 peter', '1-peter', '1peter'] },
+  { id: '2-peter', name: '2 Peter', testament: 'New', chapterCount: 3, chaptersCount: 3, abbreviations: ['2pe', '2pet', '2 pet', '2 peter', '2-peter', '2peter'] },
+  { id: '1-john', name: '1 John', testament: 'New', chapterCount: 5, chaptersCount: 5, abbreviations: ['1jn', '1john', '1 jn', '1 jhn', '1 john', '1-john', '1john'] },
+  { id: '2-john', name: '2 John', testament: 'New', chapterCount: 1, chaptersCount: 1, abbreviations: ['2jn', '2john', '2 jn', '2 jhn', '2 john', '2-john', '2john'] },
+  { id: '3-john', name: '3 John', testament: 'New', chapterCount: 1, chaptersCount: 1, abbreviations: ['3jn', '3john', '3 jn', '3 jhn', '3 john', '3-john', '3john'] },
+  { id: 'jude', name: 'Jude', testament: 'New', chapterCount: 1, chaptersCount: 1, abbreviations: ['jud', 'jude', 'jd'] },
+  { id: 'revelation', name: 'Revelation', testament: 'New', chapterCount: 22, chaptersCount: 22, abbreviations: ['rev', 're', 'apocalypse'] }
 ];
 
 export const BIBLE_CONFIG = {
@@ -116,17 +117,17 @@ export const BIBLE_CONFIG = {
 };
 
 /**
- * Normalizes a book name or abbreviation to its canonical 3-letter Bible book ID.
- * Examples: "Genesis" -> "GEN", "John" -> "JHN", "1 Cor" -> "1CO", "Gen" -> "GEN"
+ * Normalizes a book name or abbreviation to its canonical lowercase hyphenated Bible book ID.
+ * Examples: "Genesis" -> "genesis", "GEN" -> "genesis", "1 Corinthians" -> "1-corinthians", "Song of Solomon" -> "song-of-solomon"
  */
 export function normalizeBookId(bookNameOrId: string): string {
-  if (!bookNameOrId) return 'GEN';
+  if (!bookNameOrId) return 'genesis';
   const clean = bookNameOrId.trim().toLowerCase().replace(/\./g, '');
 
   const exactMatch = BIBLE_BOOKS_CATALOG.find(b => 
     b.id.toLowerCase() === clean || 
     b.name.toLowerCase() === clean ||
-    b.abbreviations.includes(clean)
+    b.abbreviations.map(a => a.toLowerCase()).includes(clean)
   );
   if (exactMatch) return exactMatch.id;
 
@@ -137,16 +138,26 @@ export function normalizeBookId(bookNameOrId: string): string {
   );
   if (prefixMatch) return prefixMatch.id;
 
-  return bookNameOrId.toUpperCase().slice(0, 3);
+  return clean.replace(/\s+/g, '-');
 }
 
 /**
  * Returns human-readable book name for a given book ID or name.
  */
 export function getBookNameById(bookIdOrName: string): string {
+  if (!bookIdOrName) return 'Genesis';
   const normId = normalizeBookId(bookIdOrName);
   const found = BIBLE_BOOKS_CATALOG.find(b => b.id === normId);
   return found ? found.name : bookIdOrName;
+}
+
+/**
+ * Returns testament ('Old' | 'New') for a given book ID or name.
+ */
+export function getTestamentByBookId(bookIdOrName: string): 'Old' | 'New' {
+  const normId = normalizeBookId(bookIdOrName);
+  const found = BIBLE_BOOKS_CATALOG.find(b => b.id === normId);
+  return found ? found.testament : 'Old';
 }
 
 /**
@@ -166,7 +177,7 @@ export function parseBibleReference(refString: string): BibleReference | null {
   if (!clean) return null;
 
   // Regular expression capturing book (with optional number prefix like '1 John'), chapter, and verse range
-  const regex = /^((?:[1-3]\s+)?[a-zA-Z\s]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/i;
+  const regex = /^((?:[1-3]\s+)?[a-zA-Z\s\-]+?)\s+(\d+)(?::(\d+)(?:-(\d+))?)?$/i;
   const match = clean.match(regex);
 
   if (!match) {
@@ -207,7 +218,7 @@ export function parseBibleReference(refString: string): BibleReference | null {
  */
 export function formatBibleReference(ref: BibleReference): string {
   if (ref.raw && !ref.book) return ref.raw;
-  const bookName = ref.book || getBookNameById(ref.bookId || 'GEN');
+  const bookName = ref.book || getBookNameById(ref.bookId || 'genesis');
   if (ref.verseStart !== undefined) {
     if (ref.verseEnd !== undefined && ref.verseEnd !== ref.verseStart) {
       return `${bookName} ${ref.chapter}:${ref.verseStart}-${ref.verseEnd}`;
@@ -223,10 +234,10 @@ export function formatBibleReference(ref: BibleReference): string {
  *
  * Examples:
  * buildBibleRoute() -> "/bible"
- * buildBibleRoute("John") -> "/bible/JHN/1"
- * buildBibleRoute("John", 3) -> "/bible/JHN/3"
- * buildBibleRoute("John", 3, 16) -> "/bible/JHN/3/16"
- * buildBibleRoute(referenceObject) -> "/bible/JHN/3/16"
+ * buildBibleRoute("genesis") -> "/bible/genesis/1"
+ * buildBibleRoute("John", 3) -> "/bible/john/3"
+ * buildBibleRoute("John", 3, 16) -> "/bible/john/3/16"
+ * buildBibleRoute(referenceObject) -> "/bible/john/3/16"
  */
 export function buildBibleRoute(
   bookOrRef?: string | BibleReference,
@@ -238,7 +249,7 @@ export function buildBibleRoute(
   }
 
   if (typeof bookOrRef === 'object') {
-    const bookId = bookOrRef.bookId || normalizeBookId(bookOrRef.book);
+    const bookId = normalizeBookId(bookOrRef.bookId || bookOrRef.book);
     const ch = bookOrRef.chapter || 1;
     if (bookOrRef.verseStart) {
       return `/bible/${bookId}/${ch}/${bookOrRef.verseStart}`;

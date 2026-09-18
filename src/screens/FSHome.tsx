@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, BookOpen, ArrowRight, Users, Lock, WifiOff } from 'lucide-react';
+import { Sparkles, BookOpen, ArrowRight, Users, Lock, UserPlus } from 'lucide-react';
 import { useDevState } from '../dev/simulations/devState';
 import { OfflineBanner } from '../components/common/OfflineBanner';
+import { FSApplicationModal } from '../components/FSApplicationModal';
 
 interface FSHomeProps {
   isOfflineSimulated?: boolean;
@@ -22,6 +23,7 @@ export const FSHome: React.FC<FSHomeProps> = ({
 }) => {
   const navigate = useNavigate();
   const devState = useDevState();
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
   const isOffline = externalOffline ?? devState.isOfflineSimulated;
   const isRestricted = externalRestricted ?? devState.isRestrictedSimulated;
@@ -57,6 +59,31 @@ export const FSHome: React.FC<FSHomeProps> = ({
         </p>
       </section>
 
+      {/* Application On-Ramp Banner */}
+      <div className="bg-linear-to-r from-[#FAF8F5] to-amber-50/40 border border-amber-200/80 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2 text-[#805600] text-xs font-extrabold uppercase tracking-wider">
+            <UserPlus className="w-4 h-4" />
+            <span>Admissions Open</span>
+          </div>
+          <h2 className="font-serif font-bold text-base sm:text-lg text-[#18181B]">
+            New to ASF or Ready for Discipleship?
+          </h2>
+          <p className="text-xs text-[#52525B] max-w-lg leading-relaxed">
+            Apply for the upcoming Foundational School cohort to be grounded in sound doctrine and paired with a dedicated discipleship facilitator.
+          </p>
+        </div>
+
+        <button
+          onClick={() => setIsApplyModalOpen(true)}
+          className="btn-primary sm:w-auto w-full flex items-center justify-center gap-2 shrink-0 h-11 px-6 shadow-xs"
+          id="fs-home-apply-btn"
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>Apply for Admission</span>
+        </button>
+      </div>
+
       {/* Overview & Quick Entry Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-[#FAF8F5] border border-[#E4E4E7] rounded-2xl p-6 flex flex-col justify-between space-y-6">
@@ -73,6 +100,7 @@ export const FSHome: React.FC<FSHomeProps> = ({
           <button
             onClick={handleViewMaterials}
             className="btn-primary w-full flex items-center justify-center gap-2"
+            id="fs-home-explore-materials-btn"
           >
             <span>Explore Course Materials</span>
             <ArrowRight className="w-4 h-4" />
@@ -93,12 +121,19 @@ export const FSHome: React.FC<FSHomeProps> = ({
           <button
             onClick={() => navigate('/fs/restricted')}
             className="btn-secondary w-full flex items-center justify-center gap-2"
+            id="fs-home-check-access-btn"
           >
             <Lock className="w-4 h-4 text-[#805600]" />
             <span>Check Access Status</span>
           </button>
         </div>
       </div>
+
+      {/* Student Application Modal */}
+      <FSApplicationModal
+        isOpen={isApplyModalOpen}
+        onClose={() => setIsApplyModalOpen(false)}
+      />
     </div>
   );
 };

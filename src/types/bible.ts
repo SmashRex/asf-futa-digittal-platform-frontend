@@ -30,10 +30,11 @@ export interface BibleChapterDetail {
 }
 
 export interface BibleBookDetail {
-  id: string; // e.g. "GEN", "JHN"
+  id: string; // canonical backend ID e.g. "genesis", "john", "song-of-solomon", "1-corinthians"
   name: string; // e.g. "Genesis", "John"
   testament: 'Old' | 'New';
   chapters: BibleChapterDetail[];
+  chapterCount?: number;
   totalChapters?: number;
   abbreviations?: string[];
 }

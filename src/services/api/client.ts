@@ -109,6 +109,29 @@ export class ApiClient {
     }
   }
 
+  async getBlob(path: string): Promise<Blob> {
+    try {
+      const response = await fetch(this.normalizeUrl(path), {
+        method: 'GET',
+        headers: this.getHeaders(),
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        await this.handleErrorResponse(response);
+      }
+      return await response.blob();
+    } catch (err: any) {
+      if (err.statusCode && err.code) {
+        throw err;
+      }
+      throw {
+        statusCode: 500,
+        code: 'NETWORK_ERROR',
+        message: err.message || 'Network request failed',
+      } as ApiError;
+    }
+  }
+
   async post<T>(path: string, body?: any): Promise<ApiResponse<T>> {
     try {
       const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;

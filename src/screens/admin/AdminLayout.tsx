@@ -66,6 +66,7 @@ export interface AdminContextType {
   addMember: (memberData: Omit<AdminMember, 'id' | 'joinDate' | 'lastActive'>) => void;
   updateMemberRole: (memberId: string, role: AdminMember['role']) => void;
   updateMemberLevel: (memberId: string, level: string) => void;
+  updateMemberSubgroup: (memberId: string, subgroup: string) => void;
   updateMemberOverrides: (memberId: string, overrides: PermissionOverride) => void;
   resetMemberAccess: (memberId: string, customNewPassword?: string) => Promise<void> | void;
   toggleMemberStatus: (memberId: string) => void;
@@ -445,6 +446,12 @@ export const AdminLayout: React.FC = () => {
     addAuditLog('Overrode Academic Level', target ? target.name : memberId, `New Level: ${level}`);
   };
 
+  const updateMemberSubgroup = (memberId: string, subgroup: string) => {
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, subgroup } : m));
+    const target = members.find(m => m.id === memberId);
+    addAuditLog('Updated Member Subgroup', target ? target.name : memberId, `New Subgroup: ${subgroup}`);
+  };
+
   const updateMemberOverrides = (memberId: string, overrides: PermissionOverride) => {
     setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissionOverrides: overrides } : m));
     const target = members.find(m => m.id === memberId);
@@ -711,6 +718,7 @@ export const AdminLayout: React.FC = () => {
     addMember,
     updateMemberRole,
     updateMemberLevel,
+    updateMemberSubgroup,
     updateMemberOverrides,
     resetMemberAccess,
     toggleMemberStatus,

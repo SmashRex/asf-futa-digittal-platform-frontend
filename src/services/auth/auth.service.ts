@@ -527,14 +527,17 @@ class AuthService {
 
   /**
    * Update current user profile: PUT /api/users/profile
+   * Note: Subgroup cannot be modified via self profile updates. Subgroup is managed via PATCH /api/members/:id/subgroup.
    */
   async updateProfile(profile: Partial<UserProfile>): Promise<UserProfile> {
+    const { subgroup, ...allowedFields } = profile as any;
+
     if (!APP_CONFIG.features.useMockServices) {
       const response = await fetch(`${API_CONFIG.baseUrl}/users/profile`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(profile),
+        body: JSON.stringify(allowedFields),
       });
       if (!response.ok) {
         let errCode = 'PROFILE_UPDATE_FAILED';

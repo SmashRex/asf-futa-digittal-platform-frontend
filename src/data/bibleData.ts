@@ -38,9 +38,11 @@ export const mockBibleVersions: BibleVersion[] = [
 
 export const mockBibleBooks: BibleBookDetail[] = [
   {
-    id: 'GEN',
+    id: 'genesis',
     name: 'Genesis',
     testament: 'Old',
+    chapterCount: 50,
+    totalChapters: 50,
     chapters: [
       {
         number: 1,
@@ -63,9 +65,11 @@ export const mockBibleBooks: BibleBookDetail[] = [
     ]
   },
   {
-    id: 'MAT',
+    id: 'matthew',
     name: 'Matthew',
     testament: 'New',
+    chapterCount: 28,
+    totalChapters: 28,
     chapters: [
       {
         number: 5,
@@ -87,9 +91,11 @@ export const mockBibleBooks: BibleBookDetail[] = [
     ]
   },
   {
-    id: 'JHN',
+    id: 'john',
     name: 'John',
     testament: 'New',
+    chapterCount: 21,
+    totalChapters: 21,
     chapters: [
       {
         number: 1,
@@ -116,9 +122,11 @@ export const mockBibleBooks: BibleBookDetail[] = [
 // Alternate translation mock for World English Bible (WEB) to test version switching
 export const mockBibleBooksWEB: BibleBookDetail[] = [
   {
-    id: 'GEN',
+    id: 'genesis',
     name: 'Genesis',
     testament: 'Old',
+    chapterCount: 50,
+    totalChapters: 50,
     chapters: [
       {
         number: 1,
@@ -141,9 +149,11 @@ export const mockBibleBooksWEB: BibleBookDetail[] = [
     ]
   },
   {
-    id: 'MAT',
+    id: 'matthew',
     name: 'Matthew',
     testament: 'New',
+    chapterCount: 28,
+    totalChapters: 28,
     chapters: [
       {
         number: 5,
@@ -165,9 +175,11 @@ export const mockBibleBooksWEB: BibleBookDetail[] = [
     ]
   },
   {
-    id: 'JHN',
+    id: 'john',
     name: 'John',
     testament: 'New',
+    chapterCount: 21,
+    totalChapters: 21,
     chapters: [
       {
         number: 1,

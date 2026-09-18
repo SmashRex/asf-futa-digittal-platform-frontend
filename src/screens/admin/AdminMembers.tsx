@@ -30,7 +30,8 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  KeyRound
+  KeyRound,
+  Briefcase
 } from 'lucide-react';
 
 const ACADEMIC_LEVELS = [
@@ -71,7 +72,7 @@ const ROLE_FILTERS: (UserRole | 'All Roles')[] = [
 ];
 
 export const AdminMembers: React.FC = () => {
-  const { members, updateMemberRole, updateMemberLevel, toggleMemberStatus, activeRole, activeMember, userRoles } = useOutletContext<AdminContextType>();
+  const { members, updateMemberRole, updateMemberLevel, updateMemberSubgroup, toggleMemberStatus, activeRole, activeMember, userRoles } = useOutletContext<AdminContextType>();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLevelFilter, setSelectedLevelFilter] = useState<string>('All Academic Levels');
@@ -126,15 +127,32 @@ export const AdminMembers: React.FC = () => {
     (userRoles && userRoles.some(r => authorizedResetPasswordRoles.includes(r)))
   );
 
+  // Authorized roles for subgroup management per contract:
+  // Publicity Coordinator, President / Executive, Technical Administrator
+  const authorizedSubgroupRoles = ['Publicity Coordinator', 'President / Executive', 'Technical Administrator'];
+  const canManageSubgroup = Boolean(
+    authorizedSubgroupRoles.includes(activeRole) ||
+    (userRoles && userRoles.some(r => authorizedSubgroupRoles.includes(r)))
+  );
+
+  const [subgroupToSet, setSubgroupToSet] = useState('');
+  const [isSubmittingSubgroup, setIsSubmittingSubgroup] = useState(false);
+  const [subgroupError, setSubgroupError] = useState('');
+
   const handleSelectMember = async (member: AdminMember) => {
     setSelectedMember(member);
     setNewPassword('');
     setResetPasswordError('');
     setResetPasswordSuccess('');
     setShowResetPassword(false);
+    setSubgroupToSet(member.subgroup || '');
+    setSubgroupError('');
     try {
       const detailed = await membersService.getMemberById(member.id);
       setSelectedMember(prev => prev && prev.id === member.id ? detailed : prev);
+      if (detailed.subgroup) {
+        setSubgroupToSet(detailed.subgroup);
+      }
     } catch (err) {
       console.warn('Could not fetch detailed member from GET /api/members/:id:', err);
     }
@@ -247,6 +265,29 @@ export const AdminMembers: React.FC = () => {
       setResetPasswordError(err.message || 'Failed to reset password');
     } finally {
       setIsResettingPassword(false);
+    }
+  };
+
+  const handleSubgroupUpdate = async (memberId: string) => {
+    if (!subgroupToSet.trim()) {
+      setSubgroupError('Please enter a valid fellowship subgroup name.');
+      return;
+    }
+    setSubgroupError('');
+    setIsSubmittingSubgroup(true);
+    try {
+      const updated = await membersService.updateSubgroup(memberId, subgroupToSet.trim());
+      updateMemberSubgroup(memberId, updated.subgroup);
+      if (selectedMember && selectedMember.id === memberId) {
+        setSelectedMember(prev => prev ? { ...prev, subgroup: updated.subgroup } : null);
+      }
+      triggerToast(`Fellowship subgroup updated to "${updated.subgroup}"`);
+    } catch (err: any) {
+      const msg = err.message || 'Failed to update subgroup';
+      setSubgroupError(msg);
+      triggerToast(msg);
+    } finally {
+      setIsSubmittingSubgroup(false);
     }
   };
 
@@ -633,6 +674,56 @@ export const AdminMembers: React.FC = () => {
                       id="submit-level-override-btn"
                     >
                       {isSubmittingOverride ? 'Submitting Override...' : 'Apply Level Override'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Subgroup Designation (Authorized roles: Publicity Coordinator, President / Executive, Technical Administrator) */}
+              {canManageSubgroup && (
+                <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#E4E4E7] space-y-3" id="admin-subgroup-management-section">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-[#18181B] flex items-center gap-1.5">
+                      <Briefcase className="w-3.5 h-3.5 text-[#5B0617]" />
+                      <span>Fellowship Subgroup Designation</span>
+                    </label>
+                    <span className="text-[10px] text-[#5B0617] font-semibold">Publicity / President / Tech Admin</span>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-[#71717A] mb-1">
+                        Subgroup Unit <span className="text-rose-600 font-bold">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={subgroupToSet}
+                        onChange={(e) => {
+                          setSubgroupToSet(e.target.value);
+                          if (subgroupError) setSubgroupError('');
+                        }}
+                        placeholder="e.g. Media Unit, Choir, Technical Team"
+                        className={`w-full p-2 rounded-lg bg-white border text-xs text-[#18181B] focus:outline-none ${
+                          subgroupError ? 'border-rose-400 focus:border-rose-500' : 'border-[#E4E4E7] focus:border-[#5B0617]'
+                        }`}
+                        id="admin-subgroup-input"
+                      />
+                      {subgroupError && (
+                        <p className="text-[11px] text-rose-600 font-medium mt-1 flex items-center gap-1" id="subgroup-error-msg">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          <span>{subgroupError}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={isSubmittingSubgroup}
+                      onClick={() => handleSubgroupUpdate(selectedMember.id)}
+                      className="w-full py-2 rounded-lg bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-bold transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                      id="submit-subgroup-update-btn"
+                    >
+                      {isSubmittingSubgroup ? 'Updating Subgroup...' : 'Save Subgroup Designation'}
                     </button>
                   </div>
                 </div>

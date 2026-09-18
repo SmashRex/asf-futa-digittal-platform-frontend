@@ -62,7 +62,6 @@ export default function Profile({ currentUser, onUpdateProfile, onToggleRole }: 
   const [name, setName] = useState(user.name);
   const [department, setDepartment] = useState(user.department);
   const [level, setLevel] = useState(user.academicLevel || user.level || '400 Level');
-  const [subgroup, setSubgroup] = useState(user.subgroup || '');
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || '');
   
   const [toastMessage, setToastMessage] = useState('');
@@ -78,14 +77,13 @@ export default function Profile({ currentUser, onUpdateProfile, onToggleRole }: 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Trigger update handler
+    // Trigger update handler (excluding subgroup which is administered by leadership)
     onUpdateProfile({
       ...user,
       name,
       department,
       academicLevel: level,
       level: level,
-      subgroup: subgroup || undefined,
       avatarUrl: avatarUrl || undefined
     });
 
@@ -280,16 +278,28 @@ export default function Profile({ currentUser, onUpdateProfile, onToggleRole }: 
           </div>
         </div>
 
-        {/* Subgroup */}
-        <Input
-          id="profile-subgroup"
-          label="Fellowship Subgroup"
-          type="text"
-          placeholder="e.g. Technical Team"
-          value={subgroup}
-          onChange={(e) => setSubgroup(e.target.value)}
-          leadingIcon={Briefcase}
-        />
+        {/* Subgroup Designation (Administered by fellowship coordinators) */}
+        <div className="bg-[var(--color-background)] p-3.5 rounded-xl border border-[var(--color-border)] space-y-1" id="profile-subgroup-info">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-[var(--color-primary)]" />
+              <label className="text-xs font-semibold text-[var(--color-text-primary)]">
+                Fellowship Subgroup
+              </label>
+            </div>
+            <span className="text-[10px] text-[var(--color-text-secondary)] font-medium">
+              Designated by Coordinators
+            </span>
+          </div>
+          <div className="flex items-center justify-between pt-1">
+            <span className="text-xs font-bold text-[var(--color-primary)] bg-[var(--color-surface)] px-2.5 py-1 rounded-lg border border-[var(--color-border)]">
+              {user.subgroup || 'General Assembly'}
+            </span>
+            <span className="text-[11px] text-[var(--color-text-secondary)]">
+              Unit designation
+            </span>
+          </div>
+        </div>
 
         {/* System Assigned Role (Clearance status & interactive switcher) */}
         <div className="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] space-y-3">

@@ -11,6 +11,7 @@ export * from './bible';
 export * from './bibleStudy';
 export * from './hymn';
 export * from './academicSession';
+export * from './fs';
 
 export type AnnouncementCategory = 'General' | 'Service' | 'Bible Study' | 'Program' | 'Administrative' | 'Fellowship';
 

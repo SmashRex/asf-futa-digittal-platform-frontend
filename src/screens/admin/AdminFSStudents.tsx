@@ -30,16 +30,26 @@ import {
   Sparkles,
   ArrowRight,
   MoreVertical,
-  MessageSquare
+  MessageSquare,
+  Upload,
+  UserMinus,
+  RefreshCw,
+  FileSpreadsheet
 } from 'lucide-react';
 import { FSStudent, FSTeacher, FSStudentStatus, FSAdminNote } from '../../types/fsAdminTypes';
 import { initialFSStudents, initialFSTeachers } from '../../data/fsAdminData';
+import { fsService } from '../../services/fs/fs.service';
+import { FSBulkGraduationItemResult } from '../../types';
+import { APP_CONFIG } from '../../config/app.config';
 
 export const AdminFSStudents: React.FC = () => {
   const navigate = useNavigate();
 
-  // Persisted state for FS students
+  // State for FS students
   const [students, setStudents] = useState<FSStudent[]>(() => {
+    if (!APP_CONFIG.features.useMockServices) {
+      return [];
+    }
     try {
       const saved = localStorage.getItem('asf_fs_students');
       return saved ? JSON.parse(saved) : initialFSStudents;
@@ -48,7 +58,7 @@ export const AdminFSStudents: React.FC = () => {
     }
   });
 
-  // Persisted state for FS teachers
+  // State for FS teachers
   const [teachers] = useState<FSTeacher[]>(() => {
     try {
       const saved = localStorage.getItem('asf_fs_teachers');
@@ -59,7 +69,9 @@ export const AdminFSStudents: React.FC = () => {
   });
 
   useEffect(() => {
-    localStorage.setItem('asf_fs_students', JSON.stringify(students));
+    if (APP_CONFIG.features.useMockServices) {
+      localStorage.setItem('asf_fs_students', JSON.stringify(students));
+    }
   }, [students]);
 
   // Filtering & Search
@@ -107,6 +119,112 @@ export const AdminFSStudents: React.FC = () => {
       return true;
     });
   }, [students, selectedTab, levelFilter, teacherFilter, searchQuery]);
+
+  // Backend Action States
+  const [isLoadingRoster, setIsLoadingRoster] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
+
+  // Bulk Graduation Modal State
+  const [isBulkGradModalOpen, setIsBulkGradModalOpen] = useState(false);
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [isUploadingBulk, setIsUploadingBulk] = useState(false);
+  const [bulkResults, setBulkResults] = useState<FSBulkGraduationItemResult[] | null>(null);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+
+  // Load real student roster from backend
+  const loadRoster = async () => {
+    setIsLoadingRoster(true);
+    setActionError(null);
+    try {
+      const roster = await fsService.getStudentRoster();
+      if (!APP_CONFIG.features.useMockServices) {
+        // Map authoritative backend roster records directly without fake mock records
+        const mappedStudents: FSStudent[] = (roster || []).map(item => {
+          const mappedStatus: FSStudentStatus = item.status === 'Graduated' ? 'Completed' : (item.status === 'Withdrawn' ? ('Withdrawn' as any) : 'Active');
+          return {
+            id: item.id,
+            fsIdNumber: `FS-${item.id.substring(0, 8).toUpperCase()}`,
+            name: item.studentName || 'Student',
+            email: item.studentEmail || '',
+            phone: '',
+            department: 'General Enrollee',
+            academicLevel: 'Undergraduate',
+            foundationalLevel: 'Level 1: Basic Doctrines',
+            status: mappedStatus,
+            previousAffiliation: 'New Enrollee',
+            enrollmentDate: item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+            completedChaptersCount: mappedStatus === 'Completed' ? 6 : 0,
+            totalChaptersCount: 6,
+            attendancePercent: 100,
+            verificationNotes: 'Enrolled in Foundational School.',
+            isVerified: true,
+            completionCertified: mappedStatus === 'Completed',
+            chapterProgress: [],
+            adminNotes: []
+          };
+        });
+        setStudents(mappedStudents);
+      } else {
+        if (roster && roster.length > 0) {
+          setStudents(prev => {
+            const updated = [...prev];
+            roster.forEach(item => {
+              const idx = updated.findIndex(s => s.id === item.id || s.email.toLowerCase() === item.studentEmail.toLowerCase());
+              const mappedStatus: FSStudentStatus = item.status === 'Graduated' ? 'Completed' : (item.status === 'Withdrawn' ? ('Withdrawn' as any) : 'Active');
+              if (idx >= 0) {
+                updated[idx] = {
+                  ...updated[idx],
+                  id: item.id,
+                  name: item.studentName || updated[idx].name,
+                  email: item.studentEmail || updated[idx].email,
+                  status: mappedStatus,
+                  completionCertified: mappedStatus === 'Completed',
+                };
+              } else {
+                updated.push({
+                  id: item.id,
+                  fsIdNumber: `FS-${item.id.substring(0, 6).toUpperCase()}`,
+                  name: item.studentName || 'Student',
+                  email: item.studentEmail || '',
+                  phone: '',
+                  department: 'General Enrollee',
+                  academicLevel: 'Undergraduate',
+                  foundationalLevel: 'Level 1: Basic Doctrines',
+                  status: mappedStatus,
+                  previousAffiliation: 'New Enrollee',
+                  enrollmentDate: item.createdAt ? item.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+                  completedChaptersCount: mappedStatus === 'Completed' ? 6 : 0,
+                  totalChaptersCount: 6,
+                  attendancePercent: 100,
+                  verificationNotes: 'Enrolled in Foundational School.',
+                  isVerified: true,
+                  completionCertified: mappedStatus === 'Completed',
+                  chapterProgress: [],
+                  adminNotes: []
+                });
+              }
+            });
+            return updated;
+          });
+        }
+      }
+    } catch (err: any) {
+      if (!APP_CONFIG.features.useMockServices) {
+        setActionError(err.message || 'Failed to load Foundational School roster from server.');
+        setStudents([]);
+      } else {
+        console.warn('Unable to load backend student roster:', err);
+      }
+    } finally {
+      setIsLoadingRoster(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRoster();
+  }, []);
 
   // Handler: Assign Teacher
   const handleAssignTeacher = (studentId: string) => {
@@ -169,9 +287,116 @@ export const AdminFSStudents: React.FC = () => {
     }
   };
 
-  // Handler: Certify Completion
-  const handleCertifyCompletion = (studentId: string) => {
-    handleUpdateStatus(studentId, 'Completed');
+  // Handler: Record Completion / Graduation (PATCH /api/fs/students/:id/record-completion)
+  const handleRecordCompletion = async (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    if (!window.confirm(`Are you sure you want to record Foundational School completion and graduate ${student.name}?`)) {
+      return;
+    }
+
+    setIsProcessingAction(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      const res = await fsService.recordStudentCompletion(studentId);
+      const isGrad = res.status === 'Graduated' || res.status === 'Completed';
+
+      setStudents(prev => prev.map(s => s.id === studentId ? {
+        ...s,
+        status: 'Completed',
+        completionCertified: true,
+        completionCertifiedDate: res.completionRecordedAt ? res.completionRecordedAt.split('T')[0] : new Date().toISOString().split('T')[0]
+      } : s));
+
+      if (selectedStudent && selectedStudent.id === studentId) {
+        setSelectedStudent(prev => prev ? {
+          ...prev,
+          status: 'Completed',
+          completionCertified: true,
+          completionCertifiedDate: res.completionRecordedAt ? res.completionRecordedAt.split('T')[0] : new Date().toISOString().split('T')[0]
+        } : null);
+      }
+
+      setActionSuccess(`Foundational School graduation recorded for ${student.name}.`);
+      setTimeout(() => setActionSuccess(null), 5000);
+    } catch (err: any) {
+      if (err.statusCode === 409 || err.code === 'STUDENT_NOT_ACTIVE') {
+        setActionError('Cannot record completion: Only currently Active students can be marked as Graduated.');
+      } else {
+        setActionError(err.message || 'Failed to record student completion.');
+      }
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  // Handler: Withdraw Student (PATCH /api/fs/students/:id/withdraw)
+  const handleWithdrawStudent = async (studentId: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    if (!window.confirm(`Are you sure you want to withdraw ${student.name} from the Foundational School?`)) {
+      return;
+    }
+
+    setIsProcessingAction(true);
+    setActionError(null);
+    setActionSuccess(null);
+
+    try {
+      await fsService.withdrawStudent(studentId);
+
+      setStudents(prev => prev.map(s => s.id === studentId ? {
+        ...s,
+        status: 'Withdrawn' as any,
+        completionCertified: false,
+      } : s));
+
+      if (selectedStudent && selectedStudent.id === studentId) {
+        setSelectedStudent(prev => prev ? {
+          ...prev,
+          status: 'Withdrawn' as any,
+          completionCertified: false,
+        } : null);
+      }
+
+      setActionSuccess(`${student.name} has been withdrawn from Foundational School.`);
+      setTimeout(() => setActionSuccess(null), 5000);
+    } catch (err: any) {
+      if (err.statusCode === 409 || err.code === 'STUDENT_NOT_ACTIVE') {
+        setActionError('Cannot withdraw student: Student is not currently Active or has already been withdrawn.');
+      } else {
+        setActionError(err.message || 'Failed to withdraw student.');
+      }
+    } finally {
+      setIsProcessingAction(false);
+    }
+  };
+
+  // Handler: Submit Bulk Graduation CSV (POST /api/fs/students/bulk-graduate)
+  const handleBulkGraduateSubmit = async () => {
+    if (!bulkFile) {
+      setBulkError('Please choose a CSV file to upload.');
+      return;
+    }
+
+    setIsUploadingBulk(true);
+    setBulkError(null);
+    setBulkResults(null);
+
+    try {
+      const results = await fsService.bulkGraduate(bulkFile);
+      setBulkResults(results);
+      // Reload roster to reflect any updated records
+      await loadRoster();
+    } catch (err: any) {
+      setBulkError(err.message || 'Failed to process bulk graduation CSV.');
+    } finally {
+      setIsUploadingBulk(false);
+    }
   };
 
   // Handler: Add Admin Note
@@ -295,20 +520,65 @@ export const AdminFSStudents: React.FC = () => {
             Manage FS Students
           </h1>
           <p className="text-xs sm:text-sm text-[#52525B] mt-1">
-            Oversee enrolled discipleship students, track module completion, assign facilitators, and review spiritual progress.
+            Oversee enrolled discipleship students, track module completion, certify graduation, and manage session withdrawals.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={loadRoster}
+            disabled={isLoadingRoster}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-[#E4E4E7] bg-[#FAF8F5] hover:bg-white text-[#18181B] text-xs font-bold transition-all shadow-xs disabled:opacity-50 cursor-pointer"
+            id="refresh-fs-roster-btn"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isLoadingRoster ? 'animate-spin text-[#5B0617]' : ''}`} />
+            <span>{isLoadingRoster ? 'Syncing...' : 'Sync Roster'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsBulkGradModalOpen(true)}
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-900 text-xs font-bold transition-all shadow-xs cursor-pointer"
+            id="bulk-graduate-csv-btn"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-700" />
+            <span>Bulk Graduate (CSV)</span>
+          </button>
+
+          <button
             onClick={() => setIsAddStudentModalOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-bold transition-all shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Enroll New Student</span>
           </button>
         </div>
       </div>
+
+      {/* Action Error / Success Banners */}
+      {actionError && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2.5 animate-in fade-in" id="fs-student-action-error">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-bold">Student Administration Notice</p>
+            <p className="mt-0.5">{actionError}</p>
+          </div>
+          <button onClick={() => setActionError(null)} className="text-rose-500 hover:text-rose-700">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {actionSuccess && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-center justify-between gap-2.5 animate-in fade-in" id="fs-student-action-success">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{actionSuccess}</span>
+          </div>
+          <button onClick={() => setActionSuccess(null)} className="text-emerald-600 hover:text-emerald-800">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* Filter Tabs & Search Controls */}
       <div className="bg-white rounded-2xl border border-[#E4E4E7] p-4 sm:p-5 shadow-sm space-y-4">
@@ -713,7 +983,7 @@ export const AdminFSStudents: React.FC = () => {
               {/* Administrative Status & Certification Actions */}
               <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#E4E4E7] space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-[#18181B]">Administrative Actions</span>
+                  <span className="text-xs font-bold text-[#18181B]">Administrative Status & Actions</span>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleUpdateStatus(selectedStudent.id, 'Active')}
@@ -738,28 +1008,57 @@ export const AdminFSStudents: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Completion Certification */}
-                {selectedStudent.completionCertified ? (
+                {/* Completion / Graduation Certification */}
+                {selectedStudent.completionCertified || selectedStudent.status === 'Completed' ? (
                   <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center justify-between">
                     <div className="flex items-center gap-2 text-emerald-900 text-xs">
                       <Award className="w-4 h-4 text-emerald-700" />
                       <div>
                         <p className="font-bold">FS Discipleship Certified</p>
-                        <p className="text-[10px] text-emerald-700">Certified by VP / FS Coordinator on {selectedStudent.completionCertifiedDate || '2025-12-18'}</p>
+                        <p className="text-[10px] text-emerald-700">Certified by FS Coordinator • {selectedStudent.completionCertifiedDate || 'Current Session'}</p>
                       </div>
                     </div>
                     <span className="px-2 py-0.5 bg-emerald-200 text-emerald-900 font-bold text-[10px] rounded">
                       Graduated
                     </span>
                   </div>
+                ) : (selectedStudent.status as any) === 'Withdrawn' ? (
+                  <div className="p-3 bg-gray-100 border border-gray-300 rounded-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-gray-700 text-xs">
+                      <UserMinus className="w-4 h-4 text-gray-500" />
+                      <div>
+                        <p className="font-bold">Student Withdrawn</p>
+                        <p className="text-[10px] text-gray-500">Student is withdrawn from the current Foundational School cohort.</p>
+                      </div>
+                    </div>
+                    <span className="px-2 py-0.5 bg-gray-200 text-gray-800 font-bold text-[10px] rounded">
+                      Withdrawn
+                    </span>
+                  </div>
                 ) : (
-                  <button
-                    onClick={() => handleCertifyCompletion(selectedStudent.id)}
-                    className="w-full py-2.5 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all"
-                  >
-                    <GraduationCap className="w-4 h-4" />
-                    <span>Certify Foundational School Completion</span>
-                  </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                    <button
+                      type="button"
+                      disabled={isProcessingAction}
+                      onClick={() => handleRecordCompletion(selectedStudent.id)}
+                      className="py-2.5 px-3 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                      id="record-student-completion-btn"
+                    >
+                      <GraduationCap className="w-4 h-4" />
+                      <span>{isProcessingAction ? 'Recording...' : 'Mark as Graduated'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isProcessingAction}
+                      onClick={() => handleWithdrawStudent(selectedStudent.id)}
+                      className="py-2.5 px-3 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+                      id="withdraw-fs-student-btn"
+                    >
+                      <UserMinus className="w-4 h-4 text-rose-600" />
+                      <span>{isProcessingAction ? 'Processing...' : 'Withdraw Student'}</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -1024,6 +1323,139 @@ export const AdminFSStudents: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Graduation CSV Modal */}
+      {isBulkGradModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" id="fs-bulk-graduate-modal">
+          <div className="bg-white w-full max-w-lg rounded-2xl p-5 sm:p-6 space-y-4 shadow-xl border border-[#E4E4E7] animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E4E4E7]">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-800">
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-base text-[#18181B]">Bulk Graduate Students (CSV)</h3>
+                  <p className="text-[11px] text-[#52525B]">Batch graduate discipleship candidates and update church records</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsBulkGradModalOpen(false);
+                  setBulkFile(null);
+                  setBulkResults(null);
+                  setBulkError(null);
+                }}
+                className="p-1 hover:bg-[#FAF8F5] rounded-lg text-[#71717A] hover:text-[#18181B] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* CSV Instructions */}
+            <div className="bg-[#FAF8F5] p-3.5 rounded-xl border border-[#E4E4E7] text-xs space-y-2">
+              <p className="font-bold text-[#18181B] flex items-center gap-1.5">
+                <FileText className="w-3.5 h-3.5 text-[#5B0617]" />
+                <span>Required CSV Header Specification</span>
+              </p>
+              <div className="bg-white p-2 rounded border border-[#E4E4E7] font-mono text-[11px] text-[#5B0617]">
+                name,academicLevel,subgroup
+              </div>
+              <p className="text-[11px] text-[#52525B]">
+                Each row matches a candidate by name and applies graduation status. If a student is found, their record is updated to <span className="font-semibold text-emerald-700">Graduated</span>.
+              </p>
+            </div>
+
+            {/* File Selector */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-[#18181B]">
+                Upload CSV File
+              </label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setBulkFile(e.target.files[0]);
+                    setBulkError(null);
+                  }
+                }}
+                className="w-full text-xs text-[#52525B] file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-[#5B0617] file:text-white hover:file:bg-[#7A1F2B] file:cursor-pointer p-2 border border-[#E4E4E7] rounded-xl bg-[#FAF8F5]"
+                id="fs-bulk-csv-input"
+              />
+            </div>
+
+            {/* Bulk Upload Error Banner */}
+            {bulkError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-900 flex items-start gap-2" id="bulk-upload-error-msg">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <span>{bulkError}</span>
+              </div>
+            )}
+
+            {/* Upload Results Table */}
+            {bulkResults && (
+              <div className="space-y-2 border-t border-[#E4E4E7] pt-3 max-h-48 overflow-y-auto" id="bulk-graduation-results-list">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-[#18181B]">Processing Results</span>
+                  <span className="text-[11px] text-[#52525B]">{bulkResults.length} records processed</span>
+                </div>
+                <div className="divide-y divide-[#E4E4E7] border border-[#E4E4E7] rounded-xl overflow-hidden">
+                  {bulkResults.map((res, idx) => (
+                    <div key={idx} className="p-2.5 bg-white flex items-center justify-between text-xs">
+                      <div>
+                        <p className="font-bold text-[#18181B]">{res.name}</p>
+                        {res.reason && <p className="text-[10px] text-[#71717A]">{res.reason}</p>}
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        res.status === 'UPDATED'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}>
+                        {res.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="flex justify-end gap-2 pt-3 border-t border-[#E4E4E7]">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsBulkGradModalOpen(false);
+                  setBulkFile(null);
+                  setBulkResults(null);
+                  setBulkError(null);
+                }}
+                className="px-4 py-2 rounded-xl border border-[#E4E4E7] text-xs font-bold text-[#52525B] hover:bg-[#FAF8F5] cursor-pointer"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                disabled={!bulkFile || isUploadingBulk}
+                onClick={handleBulkGraduateSubmit}
+                className="px-5 py-2 rounded-xl bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-50 cursor-pointer"
+                id="submit-bulk-graduate-csv-btn"
+              >
+                {isUploadingBulk ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Processing CSV...</span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Upload & Graduate</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}

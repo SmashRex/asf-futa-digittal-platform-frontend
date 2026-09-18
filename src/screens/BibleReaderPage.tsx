@@ -65,18 +65,19 @@ export default function BibleReaderPage({
         if (!isMounted) return;
         setAllBooks(books);
 
-        // Find book by exact ID, display name, abbreviations, or fallback normalization
+        // Find book by canonical ID, rawBookParam, display name, abbreviations, or fallback normalization
+        const normParam = normalizeBookId(rawBookParam);
         const currentBook = books.find(b => 
+          b.id.toLowerCase() === normParam.toLowerCase() ||
           b.id.toLowerCase() === rawBookParam.toLowerCase() ||
           b.name.toLowerCase() === rawBookParam.toLowerCase() ||
-          (b.abbreviations && b.abbreviations.some(a => a.toLowerCase() === rawBookParam.toLowerCase())) ||
-          b.id.toLowerCase() === normalizeBookId(rawBookParam).toLowerCase()
+          (b.abbreviations && b.abbreviations.some(a => a.toLowerCase() === rawBookParam.toLowerCase()))
         ) || null;
 
         if (!isMounted) return;
         setBook(currentBook);
 
-        const authoritativeBookId = currentBook ? currentBook.id : rawBookParam;
+        const authoritativeBookId = currentBook ? currentBook.id : normParam;
 
         try {
           const ch = await bibleService.getChapter(authoritativeBookId, currentChapterNum, effectiveVersionId);
@@ -108,7 +109,7 @@ export default function BibleReaderPage({
       const bookIdx = allBooks.findIndex(b => b.id.toLowerCase() === activeBookId.toLowerCase());
       if (bookIdx > 0) {
         const prevBook = allBooks[bookIdx - 1];
-        const lastChNum = prevBook.chapters[prevBook.chapters.length - 1]?.number || 1;
+        const lastChNum = prevBook.totalChapters || prevBook.chapterCount || prevBook.chapters[prevBook.chapters.length - 1]?.number || 1;
         navigate(buildBibleRoute(prevBook.id, lastChNum));
       }
     }
@@ -117,7 +118,7 @@ export default function BibleReaderPage({
   // Handle next chapter action
   const handleNextChapter = () => {
     if (!book) return;
-    const maxChapters = book.chapters.length || 1;
+    const maxChapters = book.totalChapters || book.chapterCount || book.chapters.length || 1;
     if (currentChapterNum < maxChapters) {
       navigate(buildBibleRoute(book.id, currentChapterNum + 1));
     } else {

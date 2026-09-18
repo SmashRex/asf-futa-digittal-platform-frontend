@@ -29,13 +29,13 @@ describe('bibleService', () => {
   });
 
   it('retrieves a book by id or name', async () => {
-    const gen = await bibleService.getBookById('GEN');
+    const gen = await bibleService.getBookById('genesis');
     expect(gen).not.toBeNull();
     expect(gen?.name).toBe('Genesis');
 
     const jhn = await bibleService.getBookById('John');
     expect(jhn).not.toBeNull();
-    expect(jhn?.id).toBe('JHN');
+    expect(jhn?.id).toBe('john');
   });
 
   it('resolves a reference string into structured passage data', async () => {
@@ -72,8 +72,8 @@ describe('bibleService', () => {
       message: 'Chapter retrieved'
     });
 
-    const result = await bibleService.getChapter('JHN', 3, 'KJV');
-    expect(getSpy).toHaveBeenCalledWith('/bible/KJV/JHN/3');
+    const result = await bibleService.getChapter('john', 3, 'KJV');
+    expect(getSpy).toHaveBeenCalledWith('/bible/KJV/john/3');
     expect(result?.number).toBe(3);
   });
 
@@ -111,13 +111,13 @@ describe('bibleService', () => {
 
     // Range
     await bibleService.lookupScripture({
-      bookId: 'dan',
+      bookId: 'daniel',
       chapter: 1,
       verseStart: 8,
       verseEnd: 17,
       translationId: 'KJV'
     });
-    expect(getSpy).toHaveBeenCalledWith('/bible/KJV/dan/1?verseStart=8&verseEnd=17');
+    expect(getSpy).toHaveBeenCalledWith('/bible/KJV/daniel/1?verseStart=8&verseEnd=17');
   });
 
   it('retrieves authoritative translations via GET /api/bible/translations in non-mock mode', async () => {

@@ -211,7 +211,7 @@ export default function BibleHome({
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] font-medium">
-                        <span>{book.chapters.length} ch</span>
+                        <span>{book.totalChapters || book.chapterCount || book.chapters.length} ch</span>
                         <ChevronRight className="w-3.5 h-3.5 text-[var(--color-text-secondary)] group-hover:text-[var(--color-primary)] transition-colors" />
                       </div>
                     </button>
@@ -250,7 +250,7 @@ export default function BibleHome({
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)] font-medium">
-                        <span>{book.chapters.length} ch</span>
+                        <span>{book.totalChapters || book.chapterCount || book.chapters.length} ch</span>
                         <ChevronRight className="w-3.5 h-3.5 text-[var(--color-text-secondary)] group-hover:text-[var(--color-primary)] transition-colors" />
                       </div>
                     </button>
