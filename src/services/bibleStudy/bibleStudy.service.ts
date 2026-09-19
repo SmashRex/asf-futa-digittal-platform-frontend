@@ -5,6 +5,7 @@
 
 import { 
   BibleStudyItem, 
+  BibleStudyMemoryVerse,
   BibleReference, 
   UploadOutlineResponse, 
   DetectedStudyItem,
@@ -33,6 +34,106 @@ let mockBookAliases: BookAliasItem[] = [
   { alias: 'Canticles', bookId: 'sng' },
 ];
 
+export function normalizeBibleStudyItem(raw: any): BibleStudyItem {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      id: '',
+      lessonNumber: 1,
+      title: '',
+      subTheme: '',
+      date: '',
+      keyScripture: '',
+      summary: '',
+      introduction: '',
+      discussionQuestions: [],
+      memoryVerse: { reference: '', text: '' },
+      prayerPoints: [],
+      isCurrent: false,
+      isPublished: false,
+    };
+  }
+
+  // Memory verse normalization
+  const rawMv = raw.memoryVerse || raw.memory_verse;
+  let normalizedMv: BibleStudyMemoryVerse = { reference: '', text: '' };
+  if (typeof rawMv === 'string') {
+    normalizedMv = { reference: rawMv.trim(), text: '' };
+  } else if (rawMv && typeof rawMv === 'object') {
+    normalizedMv = {
+      reference: String(rawMv.reference || rawMv.ref || rawMv.verse || '').trim(),
+      text: String(rawMv.text || rawMv.content || rawMv.quote || '').trim(),
+    };
+  }
+
+  // Scripture references normalization
+  const rawKeyScripture = String(raw.keyScripture || raw.key_scripture || raw.key_verse || '').trim();
+  const rawTextScriptures = raw.textScriptures || raw.text_scriptures;
+  const normalizedTextScriptures: string[] = Array.isArray(rawTextScriptures)
+    ? rawTextScriptures.map((s: any) => String(s).trim()).filter(Boolean)
+    : (rawKeyScripture ? [rawKeyScripture] : []);
+
+  // Questions normalization
+  const rawQuestions = raw.discussionQuestions || raw.discussion_questions || raw.questions;
+  const normalizedQuestions: string[] = Array.isArray(rawQuestions)
+    ? rawQuestions.map((q: any) => typeof q === 'string' ? q.trim() : String(q?.question || q?.text || '')).filter(Boolean)
+    : [];
+
+  // Prayer points normalization
+  const rawPrayers = raw.prayerPoints || raw.prayer_points || raw.prayers;
+  const normalizedPrayers: string[] = Array.isArray(rawPrayers)
+    ? rawPrayers.map((p: any) => typeof p === 'string' ? p.trim() : String(p?.point || p?.text || '')).filter(Boolean)
+    : [];
+
+  // Aims normalization
+  const rawAims = raw.aims || (raw.aim ? [raw.aim] : []);
+  const normalizedAims: string[] = Array.isArray(rawAims)
+    ? rawAims.map((a: any) => String(a).trim()).filter(Boolean)
+    : [];
+
+  // Lesson number
+  const parsedLessonNumber = Number(raw.lessonNumber ?? raw.lesson_number ?? raw.lesson ?? 1);
+
+  return {
+    id: String(raw.id || raw._id || raw.studyId || raw.study_id || '').trim(),
+    lessonNumber: Number.isNaN(parsedLessonNumber) || parsedLessonNumber <= 0 ? 1 : parsedLessonNumber,
+    title: String(raw.title || raw.topic || raw.name || 'Untitled Lesson').trim(),
+    theme: raw.theme || raw.annualTheme || raw.annual_theme || '',
+    annualTheme: raw.annualTheme || raw.annual_theme || raw.theme || '',
+    subTheme: String(raw.subTheme || raw.sub_theme || raw.subtheme || '').trim(),
+    date: String(raw.date || raw.study_date || raw.studyDate || '').trim(),
+    keyScripture: rawKeyScripture,
+    textScriptures: normalizedTextScriptures,
+    summary: String(raw.summary || raw.description || raw.intro || raw.introduction || '').trim(),
+    aims: normalizedAims,
+    aim: raw.aim || normalizedAims[0] || '',
+    introduction: String(raw.introduction || raw.intro || '').trim(),
+    sections: Array.isArray(raw.sections) ? raw.sections.map((s: any, idx: number) => ({
+      id: s.id || `sec-${idx + 1}`,
+      title: s.title || '',
+      paragraphs: Array.isArray(s.paragraphs) ? s.paragraphs : (s.content ? [s.content] : []),
+      scriptureRefs: Array.isArray(s.scriptureRefs || s.scripture_refs) ? (s.scriptureRefs || s.scripture_refs) : []
+    })) : [],
+    studyGuide: Array.isArray(raw.studyGuide || raw.study_guide) ? (raw.studyGuide || raw.study_guide).map((sg: any, idx: number) => ({
+      id: sg.id || `sg-${idx + 1}`,
+      number: sg.number || idx + 1,
+      question: sg.question || sg.text || '',
+      scriptureRefs: Array.isArray(sg.scriptureRefs || sg.scripture_refs) ? (sg.scriptureRefs || sg.scripture_refs) : []
+    })) : undefined,
+    discussionQuestions: normalizedQuestions,
+    conclusion: raw.conclusion || raw.summaryConclusion || '',
+    foodForThought: raw.foodForThought || raw.food_for_thought || '',
+    memoryVerse: normalizedMv,
+    prayerPoints: normalizedPrayers,
+    prayerText: raw.prayerText || raw.prayer_text || '',
+    author: raw.author || '',
+    teacher: raw.teacher || '',
+    documentUrl: raw.documentUrl || raw.document_url || raw.file_url || raw.pdf_url || '',
+    documentType: raw.documentType || raw.document_type || 'pdf',
+    isCurrent: Boolean(raw.isCurrent ?? raw.is_current ?? false),
+    isPublished: Boolean(raw.isPublished ?? raw.is_published ?? true),
+  };
+}
+
 export const bibleStudyService = {
   /**
    * Fetch all published Bible study outlines: GET /api/bible-study
@@ -41,9 +142,16 @@ export const bibleStudyService = {
     if (APP_CONFIG.features.useMockServices) {
       return mockBibleStudies.filter(s => s.isPublished);
     }
-    const res = await apiClient.get<any>('/bible-study');
-    const rawList = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : res.data?.studies || []);
-    return rawList;
+    try {
+      const res = await apiClient.get<any>('/bible-study');
+      const rawList = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : res.data?.studies || []);
+      if (Array.isArray(rawList)) {
+        return rawList.map(normalizeBibleStudyItem);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch studies:', err);
+    }
+    return [];
   },
 
   /**
@@ -53,8 +161,16 @@ export const bibleStudyService = {
     if (APP_CONFIG.features.useMockServices) {
       return mockBibleStudies.find(s => s.id === id) || null;
     }
-    const res = await apiClient.get<any>(`/bible-study/${encodeURIComponent(id)}`);
-    return res.data?.data || res.data || null;
+    try {
+      const res = await apiClient.get<any>(`/bible-study/${encodeURIComponent(id)}`);
+      const raw = res.data?.data || res.data;
+      if (raw) {
+        return normalizeBibleStudyItem(raw);
+      }
+    } catch (err) {
+      console.warn(`Failed to fetch study with id ${id}:`, err);
+    }
+    return null;
   },
 
   /**
@@ -66,10 +182,14 @@ export const bibleStudyService = {
     }
     try {
       const res = await apiClient.get<any>('/bible-study/current');
-      return res.data?.data || res.data || null;
-    } catch {
-      const fallback = await apiClient.get<any>('/bible-study/latest');
-      return fallback.data?.data || fallback.data || null;
+      const raw = res.data?.data || res.data;
+      if (raw) {
+        return normalizeBibleStudyItem(raw);
+      }
+      return null;
+    } catch (err) {
+      // Return null cleanly when no study is published for today (do not call invented endpoints)
+      return null;
     }
   },
 

@@ -16,15 +16,16 @@ export interface BibleVerseListProps {
 }
 
 export const BibleVerseList: React.FC<BibleVerseListProps> = ({
-  verses,
+  verses = [],
   targetVerse,
   fontSize = 18,
   theme = 'cream',
   onVerseClick,
   className = ''
 }) => {
-  const targetRef = useRef<HTMLDivElement | null>(null);
+  const targetRef = useRef<HTMLSpanElement | null>(null);
 
+  // Smooth scroll to target verse when present or updated
   useEffect(() => {
     if (targetVerse && targetRef.current) {
       targetRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -38,52 +39,55 @@ export const BibleVerseList: React.FC<BibleVerseListProps> = ({
 
   const getVerseNumberColor = (isTarget: boolean) => {
     if (theme === 'dark') {
-      return isTarget ? 'text-[#F59E0B]' : 'text-[#A1A1AA] group-hover:text-[#F59E0B]';
+      return isTarget ? 'text-[#F59E0B]' : 'text-amber-400/90';
     }
-    return isTarget ? 'text-[#7A1F2B]' : 'text-[#71717A] group-hover:text-[#7A1F2B]';
+    return isTarget ? 'text-[#5B0617]' : 'text-[#7A1F2B]';
   };
 
-  const getTargetBg = () => {
+  const getTargetHighlightClass = () => {
     if (theme === 'dark') {
-      return 'bg-amber-950/40 ring-1 ring-amber-500/40 font-medium rounded-lg';
+      return 'bg-[#7A1F2B]/40 text-[#FAF8F5] px-1 py-0.5 rounded-sm ring-1 ring-[#F59E0B]/60 font-medium transition-all duration-300';
     }
-    return 'bg-amber-50/80 ring-1 ring-amber-300/80 font-medium rounded-lg';
+    return 'bg-[#FBE8EA] text-[#18181B] px-1 py-0.5 rounded-sm ring-1 ring-[#7A1F2B]/30 font-medium transition-all duration-300';
   };
+
+  // Optical line-height proportional to font size for scripture flow
+  const lineHeight = Math.round(fontSize * 1.75);
 
   return (
     <div 
-      className={`font-serif select-text space-y-2.5 sm:space-y-3 ${className}`}
+      className={`font-serif select-text leading-relaxed ${className}`}
+      style={{ fontSize: `${fontSize}px`, lineHeight: `${lineHeight}px` }}
       id="bible-verse-list-container"
     >
-      {verses.map((v) => {
-        const isTarget = targetVerse === v.number;
-        return (
-          <div 
-            key={v.number} 
-            ref={isTarget ? targetRef : undefined}
-            onClick={() => onVerseClick && onVerseClick(v)}
-            className={`flex items-start gap-2.5 sm:gap-3.5 p-2 rounded-lg transition-all group ${
-              isTarget 
-                ? getTargetBg()
-                : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
-            }`}
-            id={`verse-item-${v.number}`}
-          >
+      {/* Continuous scripture text stream: verses flow as seamless prose */}
+      <p className={`${getTextColor()} text-left`}>
+        {verses.map((v) => {
+          const isTarget = targetVerse === v.number;
+          return (
             <span 
-              className={`font-sans text-xs sm:text-sm font-bold min-w-[1.75rem] sm:min-w-[2rem] text-right shrink-0 select-none pt-0.5 transition-colors ${getVerseNumberColor(isTarget)}`}
-              aria-label={`Verse ${v.number}`}
+              key={v.number} 
+              ref={isTarget ? targetRef : undefined}
+              onClick={() => onVerseClick && onVerseClick(v)}
+              className={`inline transition-colors duration-150 ${
+                isTarget 
+                  ? getTargetHighlightClass()
+                  : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.05] rounded-xs'
+              } ${onVerseClick ? 'cursor-pointer' : ''}`}
+              id={`verse-item-${v.number}`}
             >
-              {v.number}
+              <sup 
+                className={`font-sans font-bold text-[0.7em] tracking-tight mr-1 select-none align-super leading-none ${getVerseNumberColor(isTarget)}`}
+                aria-label={`Verse ${v.number}`}
+              >
+                {v.number}
+              </sup>
+              <span>{v.text}</span>
+              {' '}
             </span>
-            <p 
-              className={`flex-1 text-left ${getTextColor()}`}
-              style={{ fontSize: `${fontSize}px`, lineHeight: `${Math.round(fontSize * 1.68)}px` }}
-            >
-              {v.text}
-            </p>
-          </div>
-        );
-      })}
+          );
+        })}
+      </p>
     </div>
   );
 };

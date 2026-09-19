@@ -171,21 +171,31 @@ export default function BibleStudyReader({
 
   if (!study) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] p-6 text-center space-y-4 bg-[var(--color-background)]">
+      <div className="flex-1 flex flex-col items-center justify-center min-h-[60vh] p-6 text-center space-y-4 bg-[var(--color-background)]" id="study-not-found-state">
         <BookOpen className="w-10 h-10 text-[var(--color-text-secondary)]" />
         <h3 className="text-base font-bold text-[var(--color-text-primary)]">Bible Study Outline Not Found</h3>
-        <p className="text-xs text-[var(--color-text-secondary)] max-w-sm">The requested Bible study manual outline could not be loaded.</p>
-        <button
-          onClick={() => navigate('/bible-study')}
-          className="px-4 py-2 bg-[var(--color-primary)] text-white text-xs font-bold rounded-xl"
-        >
-          Return to Bible Study Home
-        </button>
+        <p className="text-xs text-[var(--color-text-secondary)] max-w-sm">The requested Bible study manual outline could not be loaded or is not published yet.</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-white border border-[var(--color-border)] text-[var(--color-text-primary)] text-xs font-bold rounded-xl cursor-pointer hover:bg-black/5 transition-colors"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => navigate('/bible-study')}
+            className="px-4 py-2 bg-[var(--color-primary)] text-white text-xs font-bold rounded-xl cursor-pointer hover:bg-[#5B0617] transition-colors"
+          >
+            Return to Bible Study Home
+          </button>
+        </div>
       </div>
     );
   }
 
-  const textScripturesList = study.textScriptures || [study.keyScripture];
+  const textScripturesList = Array.isArray(study.textScriptures) && study.textScriptures.length > 0
+    ? study.textScriptures
+    : (study.keyScripture ? [study.keyScripture] : []);
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--color-background)] select-none" id="bible-study-reader-screen">
@@ -393,43 +403,48 @@ export default function BibleStudyReader({
             )}
 
             {/* STUDY GUIDE SECTION (QUESTIONS + INTERACTIVE NOTES) */}
-            <section className="mb-8" id="study-guide-section">
-              <h2 className="study-section-heading">
-                <BookOpen className="w-5 h-5 text-[#fabb53] fill-current" />
-                <span>Study Guide</span>
-              </h2>
+            {((study.studyGuide && study.studyGuide.length > 0) || (Array.isArray(study.discussionQuestions) && study.discussionQuestions.length > 0)) && (
+              <section className="mb-8" id="study-guide-section">
+                <h2 className="study-section-heading">
+                  <BookOpen className="w-5 h-5 text-[#fabb53] fill-current" />
+                  <span>Study Guide</span>
+                </h2>
 
-              <div className="space-y-4 mt-4">
-                {(study.studyGuide || study.discussionQuestions.map((q, idx) => ({
-                  id: `q-${idx}`,
-                  number: idx + 1,
-                  question: q,
-                  scriptureRefs: study.textScriptures
-                }))).map((item) => (
-                  <div key={item.id} className="study-question-card">
-                    <div className="flex items-start gap-2">
-                      <span className="study-question-number">
-                        {item.number}.
-                      </span>
-                      <div className="flex-1 font-serif text-lg leading-relaxed text-[var(--color-text-primary)]">
-                        <p>
-                          {renderTextWithRefs(item.question, item.scriptureRefs)}
-                        </p>
+                <div className="space-y-4 mt-4">
+                  {((study.studyGuide && study.studyGuide.length > 0) 
+                    ? study.studyGuide 
+                    : (study.discussionQuestions || []).map((q, idx) => ({
+                        id: `q-${idx}`,
+                        number: idx + 1,
+                        question: q,
+                        scriptureRefs: textScripturesList
+                      }))
+                  ).map((item) => (
+                    <div key={item.id} className="study-question-card">
+                      <div className="flex items-start gap-2">
+                        <span className="study-question-number">
+                          {item.number}.
+                        </span>
+                        <div className="flex-1 font-serif text-lg leading-relaxed text-[var(--color-text-primary)]">
+                          <p>
+                            {renderTextWithRefs(item.question, item.scriptureRefs)}
+                          </p>
 
-                        <textarea
-                          className="study-notes-textarea mt-3 font-sans text-xs"
-                          placeholder="Add your study notes or answers here..."
-                          rows={3}
-                          value={userNotes[item.id] || ''}
-                          onChange={(e) => handleNoteChange(item.id, e.target.value)}
-                          id={`note-textarea-${item.id}`}
-                        />
+                          <textarea
+                            className="study-notes-textarea mt-3 font-sans text-xs"
+                            placeholder="Add your study notes or answers here..."
+                            rows={3}
+                            value={userNotes[item.id] || ''}
+                            onChange={(e) => handleNoteChange(item.id, e.target.value)}
+                            id={`note-textarea-${item.id}`}
+                          />
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <div className="section-divider" />
 
@@ -457,55 +472,65 @@ export default function BibleStudyReader({
             )}
 
             {/* MEMORY VERSE */}
-            <section className="study-memory-verse-section" id="study-memory-verse-section">
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="study-text-label">Memory Verse</h2>
-                <BibleReferenceLink
-                  reference={study.memoryVerse.reference}
-                  variant="badge"
-                  mode="navigate"
-                  showIcon={true}
-                />
-              </div>
-              <blockquote className="study-memory-verse-quote">
-                "{study.memoryVerse.text}"
-              </blockquote>
-              <cite className="study-memory-verse-cite">
-                —{' '}
-                <BibleReferenceLink
-                  reference={study.memoryVerse.reference}
-                  variant="inline"
-                  mode="navigate"
-                />
-              </cite>
-            </section>
+            {study.memoryVerse && (Boolean(study.memoryVerse.reference) || Boolean(study.memoryVerse.text)) && (
+              <section className="study-memory-verse-section" id="study-memory-verse-section">
+                <div className="flex items-center justify-between mb-2">
+                  <h2 className="study-text-label">Memory Verse</h2>
+                  {study.memoryVerse.reference && (
+                    <BibleReferenceLink
+                      reference={study.memoryVerse.reference}
+                      variant="badge"
+                      mode="navigate"
+                      showIcon={true}
+                    />
+                  )}
+                </div>
+                {study.memoryVerse.text && (
+                  <blockquote className="study-memory-verse-quote">
+                    "{study.memoryVerse.text}"
+                  </blockquote>
+                )}
+                {study.memoryVerse.reference && (
+                  <cite className="study-memory-verse-cite">
+                    —{' '}
+                    <BibleReferenceLink
+                      reference={study.memoryVerse.reference}
+                      variant="inline"
+                      mode="navigate"
+                    />
+                  </cite>
+                )}
+              </section>
+            )}
 
             <div className="section-divider" />
 
             {/* CLOSING PRAYER */}
-            <section className="mb-12 text-center" id="study-prayer-section">
-              <h2 className="study-section-heading justify-center mb-4">
-                <HeartHandshake className="w-5 h-5 text-[var(--color-primary)]" />
-                <span>Closing Prayer</span>
-              </h2>
+            {(Boolean(study.prayerText) || (Array.isArray(study.prayerPoints) && study.prayerPoints.length > 0)) && (
+              <section className="mb-12 text-center" id="study-prayer-section">
+                <h2 className="study-section-heading justify-center mb-4">
+                  <HeartHandshake className="w-5 h-5 text-[var(--color-primary)]" />
+                  <span>Closing Prayer</span>
+                </h2>
 
-              <div className="study-prayer-card">
-                {study.prayerText ? (
-                  <p className="font-serif italic text-lg text-[var(--color-text-primary)] leading-relaxed">
-                    {study.prayerText}
-                  </p>
-                ) : (
-                  <div className="space-y-3 text-left">
-                    {study.prayerPoints.map((p, idx) => (
-                      <p key={idx} className="font-serif italic text-base text-[var(--color-text-primary)] leading-relaxed flex items-start gap-2">
-                        <span className="text-[var(--color-primary)] font-bold">•</span>
-                        <span>{p}</span>
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
+                <div className="study-prayer-card">
+                  {study.prayerText ? (
+                    <p className="font-serif italic text-lg text-[var(--color-text-primary)] leading-relaxed">
+                      {study.prayerText}
+                    </p>
+                  ) : (
+                    <div className="space-y-3 text-left">
+                      {(study.prayerPoints || []).map((p, idx) => (
+                        <p key={idx} className="font-serif italic text-base text-[var(--color-text-primary)] leading-relaxed flex items-start gap-2">
+                          <span className="text-[var(--color-primary)] font-bold">•</span>
+                          <span>{p}</span>
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </section>
+            )}
 
           </article>
         )}

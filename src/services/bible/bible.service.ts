@@ -17,36 +17,53 @@ import { normalizeBookId, parseBibleReference, getBookNameById, getTestamentByBo
 import { APP_CONFIG } from '../../config/app.config';
 import { apiClient } from '../api/client';
 
+// In-memory cache for reference metadata to eliminate redundant network requests
+let inMemoryTranslationsCache: BibleVersion[] | null = null;
+const inMemoryBooksCache: Record<string, BibleBookDetail[]> = {};
+
 export const bibleService = {
   /**
    * Fetch list of available Bible books with chapter counts: GET /api/bible/books
    * The backend's /api/bible/books is the authoritative source for the 66-book structure.
    * There is intentionally no per-translation book endpoint.
    */
-  async getBooks(_versionId?: string): Promise<BibleBookDetail[]> {
+  async getBooks(versionId: string = 'KJV'): Promise<BibleBookDetail[]> {
     if (APP_CONFIG.features.useMockServices) {
       return mockBibleBooks;
     }
-    const res = await apiClient.get<any>('/bible/books');
-    const rawList = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : res.data?.books || []);
-    if (Array.isArray(rawList) && rawList.length > 0) {
-      return rawList.map((b: any) => {
-        const canonicalId = (b.id || b.bookId || b.code || normalizeBookId(b.name || '')).toLowerCase();
-        const totalCh = Number(b.chapterCount ?? b.chaptersCount ?? b.totalChapters ?? (Array.isArray(b.chapters) ? b.chapters.length : 1)) || 1;
-        return {
-          id: canonicalId,
-          name: b.name || b.title || getBookNameById(canonicalId),
-          testament: b.testament || (getTestamentByBookId(canonicalId) || 'Old'),
-          chapterCount: totalCh,
-          totalChapters: totalCh,
-          chapters: Array.isArray(b.chapters) && b.chapters.length > 0
-            ? b.chapters
-            : Array.from({ length: totalCh }, (_, i) => ({
-                number: i + 1,
-                verses: []
-              })),
-        };
-      });
+
+    const cacheKey = (versionId || 'KJV').toLowerCase();
+    if (inMemoryBooksCache[cacheKey] && inMemoryBooksCache[cacheKey].length > 0) {
+      return inMemoryBooksCache[cacheKey];
+    }
+
+    try {
+      const res = await apiClient.get<any>('/bible/books');
+      const rawList = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : res.data?.books || []);
+      if (Array.isArray(rawList) && rawList.length > 0) {
+        const mappedBooks = rawList.map((b: any) => {
+          const canonicalId = (b.id || b.bookId || b.code || normalizeBookId(b.name || '')).toLowerCase();
+          const totalCh = Number(b.chapterCount ?? b.chaptersCount ?? b.totalChapters ?? (Array.isArray(b.chapters) ? b.chapters.length : 1)) || 1;
+          return {
+            id: canonicalId,
+            name: b.name || b.title || getBookNameById(canonicalId),
+            testament: b.testament || (getTestamentByBookId(canonicalId) || 'Old'),
+            chapterCount: totalCh,
+            totalChapters: totalCh,
+            chapters: Array.isArray(b.chapters) && b.chapters.length > 0
+              ? b.chapters
+              : Array.from({ length: totalCh }, (_, i) => ({
+                  number: i + 1,
+                  verses: []
+                })),
+          };
+        });
+        inMemoryBooksCache[cacheKey] = mappedBooks;
+        return mappedBooks;
+      }
+    } catch (err) {
+      // In real backend mode, propagate error to caller without corrupting cache
+      throw err;
     }
     return [];
   },
@@ -121,10 +138,38 @@ export const bibleService = {
       const res = await apiClient.get<any>(url);
       const raw = res.data?.data || res.data;
       if (raw) {
+        const rawVerses: unknown[] = Array.isArray(raw.verses) 
+          ? raw.verses 
+          : (Array.isArray(raw) ? raw : []);
+
+        const normalizedVerses: BibleVerseDetail[] = rawVerses.map((v: any, idx: number) => {
+          if (typeof v === 'string') {
+            return {
+              number: idx + 1,
+              text: v.trim()
+            };
+          }
+          const vNum = Number(
+            v?.number ?? 
+            v?.verse ?? 
+            v?.verseNumber ?? 
+            v?.verse_number ?? 
+            v?.verseId ?? 
+            v?.id ?? 
+            (idx + 1)
+          );
+          const vText = String(v?.text ?? v?.content ?? v?.verseText ?? v?.verse_text ?? '').trim();
+          return {
+            number: Number.isNaN(vNum) || vNum <= 0 ? idx + 1 : vNum,
+            text: vText
+          };
+        });
+
         const formatted: BibleChapterDetail = {
-          number: raw.number || raw.chapter || chapterNum,
-          verses: Array.isArray(raw.verses) ? raw.verses : (Array.isArray(raw) ? raw : [])
+          number: Number(raw.number ?? raw.chapter ?? raw.chapterNumber ?? chapterNum) || chapterNum,
+          verses: normalizedVerses
         };
+
         try {
           localStorage.setItem(cacheKey, JSON.stringify({
             isRealBackendData: true,
@@ -192,11 +237,15 @@ export const bibleService = {
       return mockBibleVersions;
     }
 
+    if (inMemoryTranslationsCache && inMemoryTranslationsCache.length > 0) {
+      return inMemoryTranslationsCache;
+    }
+
     try {
       const res = await apiClient.get<any>('/bible/translations');
       const list = Array.isArray(res.data) ? res.data : Array.isArray(res.data?.data) ? res.data.data : res.data?.translations || [];
       if (Array.isArray(list) && list.length > 0) {
-        return list.map((t: any) => ({
+        const mapped = list.map((t: any) => ({
           id: String(t.id || t.shortName || t.code).toLowerCase(),
           name: t.name || t.title || t.id,
           shortName: (t.shortName || t.id || '').toUpperCase(),
@@ -204,6 +253,8 @@ export const bibleService = {
           isDefault: Boolean(t.isDefault ?? (String(t.id).toLowerCase() === 'kjv')),
           language: t.language || 'en'
         }));
+        inMemoryTranslationsCache = mapped;
+        return mapped;
       }
       return [];
     } catch (err) {
