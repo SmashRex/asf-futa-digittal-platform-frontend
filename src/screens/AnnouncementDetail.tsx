@@ -19,8 +19,10 @@ import {
   Megaphone,
   WifiOff
 } from 'lucide-react';
-import { mockAnnouncements } from '../data/announcementData';
+import { Announcement } from '../types';
+import { announcementsService } from '../services/announcements/announcements.service';
 import AnnouncementOffline from '../components/AnnouncementOffline';
+import { LoadingState } from '../components/common/LoadingState';
 
 interface AnnouncementDetailProps {
   isOfflineSimulated: boolean;
@@ -33,17 +35,45 @@ export default function AnnouncementDetail({
 }: AnnouncementDetailProps) {
   const { announcementId } = useParams<{ announcementId: string }>();
   const navigate = useNavigate();
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [downloadToast, setDownloadToast] = useState('');
 
-  const announcement = mockAnnouncements.find(a => a.id === announcementId);
-
-  // Auto-mark as read when opened
   useEffect(() => {
-    if (announcement) {
-      onMarkAsRead(announcement.id);
+    let isMounted = true;
+    if (announcementId) {
+      setIsLoading(true);
+      announcementsService.getAnnouncementById(announcementId)
+        .then((data) => {
+          if (!isMounted) return;
+          setAnnouncement(data);
+          if (data) {
+            onMarkAsRead(data.id);
+          }
+        })
+        .catch((err) => {
+          console.warn('[AnnouncementDetail] Failed to load notice:', err);
+        })
+        .finally(() => {
+          if (isMounted) setIsLoading(false);
+        });
+    } else {
+      setIsLoading(false);
     }
-  }, [announcement, onMarkAsRead]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [announcementId, onMarkAsRead]);
+
+  if (isLoading) {
+    return (
+      <div className="announcements-page py-12">
+        <LoadingState message="Loading notice..." />
+      </div>
+    );
+  }
 
   if (!announcement) {
     return (
@@ -88,7 +118,7 @@ export default function AnnouncementDetail({
   const handleShare = () => {
     const shareData = {
       title: announcement.title,
-      text: `${announcement.title}\n\n${announcement.excerpt}\n\nRead full notice on ASF Platform:`,
+      text: `${announcement.title}\n\n${announcement.excerpt || announcement.message}\n\nRead full notice on ASF Platform:`,
       url: window.location.href
     };
 
@@ -101,152 +131,120 @@ export default function AnnouncementDetail({
     }
   };
 
-  const handleDownloadAttachment = () => {
-    setDownloadToast(`Downloading ${announcement.attachmentName} (${announcement.attachmentSize})...`);
-    setTimeout(() => {
-      setDownloadToast('');
-    }, 3500);
+  const handleDownloadAttachment = (filename: string) => {
+    setDownloadToast(`Simulated download of ${filename} started...`);
+    setTimeout(() => setDownloadToast(''), 3000);
   };
 
-  // Badge styling
-  const getBadgeStyle = () => {
-    if (announcement.priority === 'Urgent') return 'announcement-badge-urgent';
-    if (announcement.priority === 'Important') return 'announcement-badge-important';
-    return 'announcement-badge-normal';
+  // Get Priority Badge Color
+  const getPriorityStyle = (priority?: string) => {
+    switch (priority) {
+      case 'Urgent':
+        return {
+          bg: 'bg-rose-50 border-rose-200 text-rose-800',
+          icon: <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+        };
+      case 'Important':
+        return {
+          bg: 'bg-amber-50 border-amber-200 text-amber-800',
+          icon: <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+        };
+      default:
+        return {
+          bg: 'bg-stone-50 border-stone-200 text-stone-700',
+          icon: <Info className="w-3.5 h-3.5 text-stone-500" />
+        };
+    }
   };
 
-  // Split content into editorial paragraphs
-  const paragraphs = announcement.content.split('\n\n').filter(p => p.trim() !== '');
+  const priorityStyle = getPriorityStyle(announcement.priority);
 
   return (
-    <div className="announcement-detail select-none" id="announcement-detail-screen">
+    <div className="announcements-page select-none" id={`announcement-detail-${announcement.id}`}>
       
-      {/* Back Navigation Bar */}
-      <div className="flex items-center justify-between mb-6" id="announcement-detail-nav">
+      {/* Top Action Back Button */}
+      <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => navigate('/announcements')}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] hover:bg-[var(--color-background)] transition-colors shadow-2xs"
+          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] hover:bg-[var(--color-background)] transition-colors shadow-2xs cursor-pointer"
           id="announcement-back-btn"
         >
           <ArrowLeft className="w-4 h-4 text-[var(--color-primary)]" />
-          <span>Back to Feed</span>
+          <span>All Notices</span>
         </button>
 
-        <button
-          onClick={handleShare}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-bold text-[var(--color-primary)] hover:bg-[var(--color-primary-tint)] transition-colors shadow-2xs"
-          id="announcement-share-btn"
-        >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4 text-emerald-600" />
-              <span>Link Copied</span>
-            </>
-          ) : (
-            <>
-              <Share2 className="w-4 h-4" />
-              <span>Share Notice</span>
-            </>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShare}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] text-xs font-bold text-[var(--color-text-primary)] hover:bg-[var(--color-background)] transition-colors shadow-2xs cursor-pointer"
+            id="announcement-share-btn"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Share2 className="w-3.5 h-3.5 text-[var(--color-primary)]" />}
+            <span>{copied ? 'Link Copied' : 'Share'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* Detail Article Card */}
-      <article className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-6 sm:p-8 shadow-xs">
+      {/* Main Notice Article */}
+      <article className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-2xl p-6 sm:p-8 shadow-2xs space-y-6">
         
-        {/* Article Header */}
-        <header className="announcement-detail-header">
-          <div className="flex items-center gap-2 mb-3">
-            <span className={`announcement-badge ${getBadgeStyle()}`}>
-              {announcement.priority === 'Urgent' && <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
-              {announcement.priority === 'Important' && <Info className="w-3.5 h-3.5 shrink-0" />}
-              <span>{announcement.category}</span>
+        {/* Category & Metadata Header */}
+        <div className="space-y-3 border-b border-[var(--color-border)] pb-5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-3 py-1 bg-[var(--color-primary-tint)] text-[var(--color-primary)] font-bold text-xs rounded-full border border-amber-200/50">
+              {announcement.category}
             </span>
 
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-              <span>Verified Official Notice</span>
-            </span>
+            {announcement.priority && announcement.priority !== 'Normal' && (
+              <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${priorityStyle.bg}`}>
+                {priorityStyle.icon}
+                <span>{announcement.priority} Notice</span>
+              </span>
+            )}
           </div>
 
-          <h1 className="announcement-detail-title">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-serif text-[var(--color-text-primary)] leading-tight">
             {announcement.title}
           </h1>
 
-          <div className="announcement-detail-meta">
+          <div className="flex flex-wrap items-center gap-4 text-xs text-[var(--color-text-secondary)]">
             <div className="flex items-center gap-1.5">
-              <User className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
-              <span className="font-semibold text-[var(--color-text-primary)]">{announcement.author}</span>
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{new Date(announcement.publishedAt).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
             </div>
-            <span className="text-[var(--color-border)]">•</span>
             <div className="flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-[var(--color-text-light)] shrink-0" />
-              <span>Published {announcement.publishedAt}</span>
+              <User className="w-3.5 h-3.5" />
+              <span>{announcement.author}</span>
             </div>
           </div>
-        </header>
-
-        {/* Article Content Paragraphs */}
-        <div className="announcement-detail-body">
-          {paragraphs.map((paragraph, index) => (
-            <p key={index} className="whitespace-pre-line leading-relaxed">
-              {paragraph}
-            </p>
-          ))}
         </div>
 
-        {/* Attachment Card Box */}
-        {announcement.attachmentName && (
-          <div className="announcement-attachment" id="announcement-attachment-box">
-            <div className="flex items-center gap-3">
-              <div className="p-3 bg-[var(--color-primary-tint)] text-[var(--color-primary)] rounded-xl shrink-0">
-                <Paperclip className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[var(--color-text-primary)] truncate max-w-[200px] sm:max-w-xs">
-                  {announcement.attachmentName}
-                </p>
-                <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5">
-                  Official Attachment ({announcement.attachmentSize})
-                </p>
-              </div>
-            </div>
+        {/* Notice Body Content */}
+        <div className="prose prose-sm sm:prose-base max-w-none text-[var(--color-text-primary)] font-serif leading-relaxed whitespace-pre-line">
+          {announcement.content || announcement.message}
+        </div>
 
-            <button
-              onClick={handleDownloadAttachment}
-              className="px-3.5 py-2 bg-[var(--color-primary)] text-white text-xs font-bold rounded-xl hover:bg-[var(--color-primary-dark)] transition-colors inline-flex items-center gap-1.5 shrink-0 shadow-2xs"
-              id="download-attachment-btn"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download</span>
-            </button>
+        {/* Official Channel Signature */}
+        <div className="pt-6 border-t border-[var(--color-border)] flex items-center justify-between text-xs text-[var(--color-text-secondary)]">
+          <div>
+            <p className="font-bold text-[var(--color-text-primary)]">Publicity & Media Committee</p>
+            <p className="text-[11px]">Anglican Students' Fellowship FUTA</p>
           </div>
-        )}
-
-        {/* Article Footer */}
-        <footer className="mt-8 pt-6 border-t border-[var(--color-border)] flex flex-wrap items-center justify-between gap-4">
-          <div className="text-xs text-[var(--color-text-secondary)]">
-            <span>Anglican Students' Fellowship FUTA • Official Communication Desk</span>
+          <div className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200 text-[11px] font-bold">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Verified Official Notice</span>
           </div>
+        </div>
 
-          <button
-            onClick={() => navigate('/announcements')}
-            className="btn-primary text-xs py-2 px-4 inline-flex items-center gap-2"
-            id="announcement-return-footer-btn"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Return to Announcements</span>
-          </button>
-        </footer>
       </article>
 
-      {/* Download Toast Notification */}
+      {/* Toast Notification */}
       {downloadToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[var(--color-text-primary)] text-white text-xs px-4 py-3 rounded-xl shadow-lg border border-white/10 max-w-sm w-[90%] flex items-center gap-2 animate-bounce z-50">
-          <Download className="w-4 h-4 text-[var(--color-accent)] shrink-0" />
-          <span>{downloadToast}</span>
+        <div className="fixed bottom-6 right-6 bg-stone-900 text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-lg animate-fade-in z-50">
+          {downloadToast}
         </div>
       )}
+
     </div>
   );
 }

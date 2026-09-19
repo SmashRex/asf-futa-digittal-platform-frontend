@@ -579,6 +579,7 @@ function AppContent() {
           <BibleReaderPage 
             isOfflineSimulated={isOfflineSimulated}
             activeVersionId={activeVersionId}
+            onVersionChange={setActiveVersionId}
           />,
           { hideHeader: true }
         )} 
@@ -589,6 +590,7 @@ function AppContent() {
           <BibleReaderPage 
             isOfflineSimulated={isOfflineSimulated}
             activeVersionId={activeVersionId}
+            onVersionChange={setActiveVersionId}
           />,
           { hideHeader: true }
         )} 
@@ -599,6 +601,7 @@ function AppContent() {
           <BibleReaderPage 
             isOfflineSimulated={isOfflineSimulated}
             activeVersionId={activeVersionId}
+            onVersionChange={setActiveVersionId}
           />,
           { hideHeader: true }
         )} 
@@ -609,6 +612,7 @@ function AppContent() {
           <BibleReaderPage 
             isOfflineSimulated={isOfflineSimulated}
             activeVersionId={activeVersionId}
+            onVersionChange={setActiveVersionId}
           />,
           { hideHeader: true }
         )} 

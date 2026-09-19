@@ -37,7 +37,7 @@ import {
 } from 'lucide-react';
 
 export const AdminSettings: React.FC = () => {
-  const { activeRole, contentItems, members, auditLogs, hasPermission } = useOutletContext<AdminContextType>();
+  const { activeRole, contentItems, members, hasPermission } = useOutletContext<AdminContextType>();
 
   // Determine allowed setting tabs based on effective permissions
   const canAccessGeneral = hasPermission('system.configuration.view') || hasPermission('governance.view') || hasPermission('leadership.view');
@@ -179,8 +179,7 @@ export const AdminSettings: React.FC = () => {
       fellowshipName,
       semesterTheme,
       contentItems,
-      members,
-      auditLogs
+      members
     };
 
     const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
@@ -793,7 +792,7 @@ export const AdminSettings: React.FC = () => {
             </h2>
 
             <p className="text-xs text-[#52525B]">
-              Export a full JSON archive containing outlines, member records, and administrative audit logs for offline archival or data restoration.
+              Export a full JSON archive containing outlines and member records for offline archival or data restoration.
             </p>
 
             <button

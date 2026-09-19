@@ -46,7 +46,7 @@ export default function Home({ currentUser }: HomeProps) {
       try {
         const [studyRes, eventsRes, announcementsRes] = await Promise.allSettled([
           bibleStudyService.getLatestStudy(),
-          eventsService.getEvents({ horizon: 'upcoming' }),
+          eventsService.getEvents({ filter: 'upcoming' }),
           announcementsService.getAnnouncements(),
         ]);
 

@@ -4,16 +4,15 @@
  */
 
 export type EventCategory = 
-  | 'Worship' 
-  | 'Service' 
   | 'Bible Study' 
   | 'Prayer' 
-  | 'Fellowship' 
+  | 'Worship' 
   | 'Outreach' 
-  | 'Seminar' 
-  | 'Conference' 
-  | 'Youth' 
-  | 'Special Program';
+  | 'Fellowship' 
+  | 'Special Program'
+  | 'Administrative';
+
+export type EventMode = 'In-Person' | 'Online / Zoom' | 'Hybrid';
 
 export interface AgendaItem {
   time: string;
@@ -64,7 +63,7 @@ export interface EventItem {
   };
   aboutContent?: string[];
   guestMinisters?: string[];
-  status?: 'Upcoming' | 'Happening Today' | 'Starting Soon' | 'Tomorrow' | 'Past';
+  status?: 'Upcoming' | 'Happening Today' | 'Starting Soon' | 'Tomorrow' | 'Past' | 'Cancelled';
   isPast?: boolean;
   isToday?: boolean;
   isSoon?: boolean;

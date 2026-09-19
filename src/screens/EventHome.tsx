@@ -55,11 +55,11 @@ export default function EventHome({
     let isMounted = true;
     setIsLoading(true);
 
-    const horizon = activeTab === 'Past Events' ? 'past' : 'all';
+    const filter = activeTab === 'Past Events' ? 'past' : undefined;
 
     eventsService.getEvents({
       category: selectedCategory as any,
-      horizon: horizon as any,
+      filter: filter,
       searchQuery: searchQuery,
       isOfflineSimulated: devState.isOfflineSimulated,
     }).then((data) => {

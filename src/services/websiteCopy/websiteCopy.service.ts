@@ -7,7 +7,9 @@ import {
   WebsiteCopyModel, 
   DynamicWebsiteSection, 
   WebsiteConfiguration,
-  ControlledSectionType
+  ControlledSectionType,
+  CORE_SECTION_KEYS,
+  CoreSectionKey
 } from '../../types/websiteCopy';
 import { apiClient } from '../api/client';
 import { APP_CONFIG } from '../../config/app.config';
@@ -68,6 +70,8 @@ export const DEFAULT_WEBSITE_COPY: WebsiteCopyModel = {
 export const DEFAULT_WEBSITE_SECTIONS: DynamicWebsiteSection[] = [
   {
     id: 'sec-hero',
+    sectionKey: 'sec-hero',
+    isCore: true,
     type: 'hero',
     title: 'Hero Welcome',
     configuration: { background: 'default' },
@@ -79,6 +83,8 @@ export const DEFAULT_WEBSITE_SECTIONS: DynamicWebsiteSection[] = [
   },
   {
     id: 'sec-about',
+    sectionKey: 'sec-about',
+    isCore: true,
     type: 'about',
     title: 'About Fellowship',
     configuration: { background: 'default' },
@@ -90,6 +96,8 @@ export const DEFAULT_WEBSITE_SECTIONS: DynamicWebsiteSection[] = [
   },
   {
     id: 'sec-schedule',
+    sectionKey: 'sec-schedule',
+    isCore: true,
     type: 'schedule',
     title: 'Weekly Schedule',
     configuration: { background: 'default' },
@@ -101,6 +109,8 @@ export const DEFAULT_WEBSITE_SECTIONS: DynamicWebsiteSection[] = [
   },
   {
     id: 'sec-life',
+    sectionKey: 'sec-life',
+    isCore: true,
     type: 'life',
     title: 'Life at ASF',
     configuration: { background: 'default' },
@@ -112,6 +122,8 @@ export const DEFAULT_WEBSITE_SECTIONS: DynamicWebsiteSection[] = [
   },
   {
     id: 'sec-visit',
+    sectionKey: 'sec-visit',
+    isCore: true,
     type: 'visit',
     title: 'Visit Us',
     configuration: { background: 'default' },
@@ -123,6 +135,8 @@ export const DEFAULT_WEBSITE_SECTIONS: DynamicWebsiteSection[] = [
   },
   {
     id: 'sec-cta',
+    sectionKey: 'sec-cta',
+    isCore: true,
     type: 'cta',
     title: 'Call to Action',
     configuration: { background: 'brand' },
@@ -145,6 +159,87 @@ export const INITIAL_WEBSITE_CONFIG: WebsiteConfiguration = {
   publishedAt: '2026-09-06T00:00:00.000Z'
 };
 
+/**
+ * Normalizes backend response or storage object into a strongly typed WebsiteConfiguration.
+ */
+function normalizeWebsiteConfiguration(data: any): WebsiteConfiguration {
+  if (!data) return { ...INITIAL_WEBSITE_CONFIG };
+
+  const raw = data.data || data;
+  const rawCopy = raw.copy || raw;
+
+  const mergedCopy: WebsiteCopyModel = {
+    hero: { ...DEFAULT_WEBSITE_COPY.hero, ...(rawCopy.hero || {}) },
+    about: { ...DEFAULT_WEBSITE_COPY.about, ...(rawCopy.about || {}) },
+    life: { ...DEFAULT_WEBSITE_COPY.life, ...(rawCopy.life || {}) },
+    visit: { ...DEFAULT_WEBSITE_COPY.visit, ...(rawCopy.visit || {}) },
+    cta: { ...DEFAULT_WEBSITE_COPY.cta, ...(rawCopy.cta || {}) },
+    lastUpdated: rawCopy.lastUpdated || raw.lastUpdated || new Date().toISOString(),
+    updatedBy: rawCopy.updatedBy || raw.updatedBy || 'Publicity Coordinator',
+    version: raw.version || rawCopy.version || 1
+  };
+
+  const rawSections: any[] = Array.isArray(raw.sections) ? raw.sections : DEFAULT_WEBSITE_SECTIONS;
+  const normalizedSections: DynamicWebsiteSection[] = rawSections.map((s, index) => {
+    const key = s.sectionKey || s.id || `sec-${index}`;
+    const isCore = s.isCore ?? CORE_SECTION_KEYS.includes(key as CoreSectionKey);
+    return {
+      id: s.id || key,
+      sectionKey: key,
+      isCore,
+      type: s.type || 'text_image',
+      title: s.title || 'Untitled Section',
+      subtitle: s.subtitle,
+      description: s.description,
+      imageUrl: s.imageUrl,
+      items: Array.isArray(s.items) ? s.items : undefined,
+      configuration: s.configuration || s.config || {},
+      order: typeof s.order === 'number' ? s.order : index + 1,
+      status: s.status || raw.status || 'published',
+      isVisible: typeof s.isVisible === 'boolean' ? s.isVisible : true,
+      createdAt: s.createdAt || new Date().toISOString(),
+      updatedAt: s.updatedAt || new Date().toISOString(),
+      updatedBy: s.updatedBy || raw.updatedBy
+    };
+  });
+
+  // Ensure all 6 core sections exist in the sections list
+  const ensuredSections = ensureAllCoreSections(normalizedSections);
+
+  return {
+    id: raw.id || 'asf-website-config',
+    version: raw.version || 1,
+    status: raw.status || 'published',
+    copy: mergedCopy,
+    sections: ensuredSections,
+    lastUpdated: raw.lastUpdated || mergedCopy.lastUpdated,
+    updatedBy: raw.updatedBy || mergedCopy.updatedBy,
+    publishedAt: raw.publishedAt
+  };
+}
+
+/**
+ * Ensures all 6 required core sections are present in the list.
+ */
+function ensureAllCoreSections(sections: DynamicWebsiteSection[]): DynamicWebsiteSection[] {
+  const result = [...sections];
+  
+  CORE_SECTION_KEYS.forEach((coreKey, idx) => {
+    const exists = result.some(s => s.sectionKey === coreKey || s.id === coreKey);
+    if (!exists) {
+      const defaultSec = DEFAULT_WEBSITE_SECTIONS.find(s => s.id === coreKey || s.sectionKey === coreKey);
+      if (defaultSec) {
+        result.push({
+          ...defaultSec,
+          order: result.length + 1
+        });
+      }
+    }
+  });
+
+  return result;
+}
+
 class WebsiteCopyService {
   private publishedCacheKey = 'asf_website_config_published';
   private draftCacheKey = 'asf_website_config_draft';
@@ -153,15 +248,33 @@ class WebsiteCopyService {
 
   /**
    * Fetch authoritative published website configuration for the public website.
-   * Prioritizes backend API when connected, falls back to local cache or default system configuration.
+   * In live mode, makes GET /api/content/website.
+   */
+  public async fetchPublishedConfig(): Promise<WebsiteConfiguration> {
+    if (!APP_CONFIG.features.useMockServices) {
+      const res = await apiClient.get<any>('/api/content/website');
+      const normalized = normalizeWebsiteConfiguration(res.data);
+      try {
+        localStorage.setItem(this.publishedCacheKey, JSON.stringify(normalized));
+      } catch (err) {
+        console.warn('[WebsiteCopyService] Local cache save failed:', err);
+      }
+      this.notifyListeners();
+      return normalized;
+    }
+
+    return this.getPublishedConfig();
+  }
+
+  /**
+   * Synchronous getter for published config (reads cache or defaults).
    */
   public getPublishedConfig(): WebsiteConfiguration {
     try {
       const saved = localStorage.getItem(this.publishedCacheKey);
       if (saved) {
-        return JSON.parse(saved);
+        return normalizeWebsiteConfiguration(JSON.parse(saved));
       }
-      // Migrate legacy copy cache if present
       const legacySaved = localStorage.getItem(this.legacyCopyCacheKey);
       if (legacySaved) {
         const legacyCopy: WebsiteCopyModel = JSON.parse(legacySaved);
@@ -181,18 +294,36 @@ class WebsiteCopyService {
 
   /**
    * Fetch current working draft configuration for the CMS editor.
-   * Allows content coordinators to prepare changes without altering the live website.
+   * In live mode, makes GET /api/content/website/draft.
+   */
+  public async fetchDraftConfig(): Promise<WebsiteConfiguration> {
+    if (!APP_CONFIG.features.useMockServices) {
+      const res = await apiClient.get<any>('/api/content/website/draft');
+      const normalized = normalizeWebsiteConfiguration(res.data);
+      try {
+        localStorage.setItem(this.draftCacheKey, JSON.stringify(normalized));
+      } catch (err) {
+        console.warn('[WebsiteCopyService] Local draft cache save failed:', err);
+      }
+      this.notifyListeners();
+      return normalized;
+    }
+
+    return this.getDraftConfig();
+  }
+
+  /**
+   * Synchronous getter for draft config (reads cache or falls back to published).
    */
   public getDraftConfig(): WebsiteConfiguration {
     try {
       const savedDraft = localStorage.getItem(this.draftCacheKey);
       if (savedDraft) {
-        return JSON.parse(savedDraft);
+        return normalizeWebsiteConfiguration(JSON.parse(savedDraft));
       }
     } catch (e) {
       console.error('[WebsiteCopyService] Failed to load draft configuration:', e);
     }
-    // If no active draft exists, clone the current published version as initial draft
     const published = this.getPublishedConfig();
     const newDraft: WebsiteConfiguration = {
       ...published,
@@ -215,42 +346,65 @@ class WebsiteCopyService {
 
   /**
    * Save changes to the CMS working draft.
-   * Does NOT publish to the live public site.
+   * In live mode, sends POST /api/content/website/draft.
+   * Preserves all six core sections in the sections array.
    */
   public async saveDraft(
     draftUpdates: Partial<WebsiteConfiguration>,
     authorName: string = 'Publicity Coordinator'
   ): Promise<WebsiteConfiguration> {
     const currentDraft = this.getDraftConfig();
+    const fullCopy: WebsiteCopyModel = {
+      ...currentDraft.copy,
+      ...(draftUpdates.copy || {}),
+      hero: { ...currentDraft.copy.hero, ...(draftUpdates.copy?.hero || {}) },
+      about: { ...currentDraft.copy.about, ...(draftUpdates.copy?.about || {}) },
+      life: { ...currentDraft.copy.life, ...(draftUpdates.copy?.life || {}) },
+      visit: { ...currentDraft.copy.visit, ...(draftUpdates.copy?.visit || {}) },
+      cta: { ...currentDraft.copy.cta, ...(draftUpdates.copy?.cta || {}) }
+    };
+
+    const candidateSections = draftUpdates.sections || currentDraft.sections;
+    const fullSections = ensureAllCoreSections(candidateSections);
+
     const updatedDraft: WebsiteConfiguration = {
       ...currentDraft,
       ...draftUpdates,
-      copy: {
-        ...currentDraft.copy,
-        ...(draftUpdates.copy || {}),
-        hero: { ...currentDraft.copy.hero, ...(draftUpdates.copy?.hero || {}) },
-        about: { ...currentDraft.copy.about, ...(draftUpdates.copy?.about || {}) },
-        life: { ...currentDraft.copy.life, ...(draftUpdates.copy?.life || {}) },
-        visit: { ...currentDraft.copy.visit, ...(draftUpdates.copy?.visit || {}) },
-        cta: { ...currentDraft.copy.cta, ...(draftUpdates.copy?.cta || {}) }
-      },
-      sections: draftUpdates.sections || currentDraft.sections,
+      copy: fullCopy,
+      sections: fullSections,
       status: 'draft',
       lastUpdated: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
       updatedBy: authorName
     };
 
     if (!APP_CONFIG.features.useMockServices) {
+      const payload = {
+        copy: fullCopy,
+        sections: fullSections.map((s, idx) => ({
+          id: s.id,
+          sectionKey: s.sectionKey || s.id,
+          type: s.type,
+          title: s.title,
+          isCore: s.isCore ?? CORE_SECTION_KEYS.includes((s.sectionKey || s.id) as CoreSectionKey),
+          order: typeof s.order === 'number' ? s.order : idx + 1,
+          isVisible: Boolean(s.isVisible),
+          subtitle: s.subtitle,
+          description: s.description,
+          imageUrl: s.imageUrl,
+          items: s.items,
+          configuration: s.configuration
+        }))
+      };
+
+      const res = await apiClient.post<any>('/api/content/website/draft', payload);
+      const normalized = normalizeWebsiteConfiguration(res.data);
       try {
-        const res = await apiClient.post<WebsiteConfiguration>('/api/content/website/draft', updatedDraft);
-        if (res.data) {
-          localStorage.setItem(this.draftCacheKey, JSON.stringify(res.data));
-          this.notifyListeners();
-          return res.data;
-        }
-      } catch (e) {
-        console.warn('[WebsiteCopyService] Remote saveDraft failed, persisting locally:', e);
+        localStorage.setItem(this.draftCacheKey, JSON.stringify(normalized));
+      } catch (err) {
+        console.warn('[WebsiteCopyService] Local draft save failed:', err);
       }
+      this.notifyListeners();
+      return normalized;
     }
 
     localStorage.setItem(this.draftCacheKey, JSON.stringify(updatedDraft));
@@ -260,12 +414,24 @@ class WebsiteCopyService {
 
   /**
    * Publish the current draft to the live public website.
-   * Increments version, sets status to 'published', updates timestamp, and commits to published storage.
+   * In live mode, sends POST /api/content/website/publish (no body).
    */
   public async publishDraft(authorName: string = 'Publicity Coordinator'): Promise<WebsiteConfiguration> {
+    if (!APP_CONFIG.features.useMockServices) {
+      const res = await apiClient.post<any>('/api/content/website/publish');
+      const normalized = normalizeWebsiteConfiguration(res.data);
+      try {
+        localStorage.setItem(this.publishedCacheKey, JSON.stringify(normalized));
+        localStorage.setItem(this.draftCacheKey, JSON.stringify(normalized));
+      } catch (err) {
+        console.warn('[WebsiteCopyService] Local storage update failed:', err);
+      }
+      this.notifyListeners();
+      return normalized;
+    }
+
     const draft = this.getDraftConfig();
     const published = this.getPublishedConfig();
-
     const newVersion = (published.version || 1) + 1;
     const nowIso = new Date().toISOString();
     const nowReadable = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -280,21 +446,6 @@ class WebsiteCopyService {
       sections: draft.sections.map(s => ({ ...s, status: 'published' }))
     };
 
-    if (!APP_CONFIG.features.useMockServices) {
-      try {
-        const res = await apiClient.post<WebsiteConfiguration>('/api/content/website/publish', newPublished);
-        if (res.data) {
-          localStorage.setItem(this.publishedCacheKey, JSON.stringify(res.data));
-          localStorage.setItem(this.draftCacheKey, JSON.stringify(res.data));
-          localStorage.setItem(this.legacyCopyCacheKey, JSON.stringify(res.data.copy));
-          this.notifyListeners();
-          return res.data;
-        }
-      } catch (e) {
-        console.warn('[WebsiteCopyService] Remote publish failed, persisting locally:', e);
-      }
-    }
-
     localStorage.setItem(this.publishedCacheKey, JSON.stringify(newPublished));
     localStorage.setItem(this.draftCacheKey, JSON.stringify(newPublished));
     localStorage.setItem(this.legacyCopyCacheKey, JSON.stringify(newPublished.copy));
@@ -304,8 +455,14 @@ class WebsiteCopyService {
 
   /**
    * Discard uncommitted draft changes and restore the live published state into the draft.
+   * In live mode, sends POST /api/content/website/draft/discard (no body) then reloads draft.
    */
-  public discardDraft(): WebsiteConfiguration {
+  public async discardDraft(): Promise<WebsiteConfiguration> {
+    if (!APP_CONFIG.features.useMockServices) {
+      await apiClient.post<any>('/api/content/website/draft/discard');
+      return await this.fetchDraftConfig();
+    }
+
     const published = this.getPublishedConfig();
     const revertedDraft: WebsiteConfiguration = {
       ...published,
@@ -317,8 +474,31 @@ class WebsiteCopyService {
   }
 
   /**
+   * Reset website copy and sections back to pristine system defaults.
+   * In live mode, sends POST /api/content/website/reset (no body) then reloads draft.
+   * NOTE: Reset does NOT publish! It only resets the draft.
+   */
+  public async resetCopy(authorName: string = 'System Admin'): Promise<WebsiteConfiguration> {
+    if (!APP_CONFIG.features.useMockServices) {
+      await apiClient.post<any>('/api/content/website/reset');
+      return await this.fetchDraftConfig();
+    }
+
+    const resetConfig: WebsiteConfiguration = {
+      ...INITIAL_WEBSITE_CONFIG,
+      lastUpdated: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      updatedBy: authorName,
+      version: 1
+    };
+    localStorage.setItem(this.publishedCacheKey, JSON.stringify(resetConfig));
+    localStorage.setItem(this.draftCacheKey, JSON.stringify(resetConfig));
+    localStorage.setItem(this.legacyCopyCacheKey, JSON.stringify(resetConfig.copy));
+    this.notifyListeners();
+    return resetConfig;
+  }
+
+  /**
    * Add a new controlled section to the website draft.
-   * Strictly adheres to controlled section configurations — no arbitrary HTML/JS/CSS allowed.
    */
   public async addSection(
     sectionData: Omit<DynamicWebsiteSection, 'id' | 'createdAt' | 'updatedAt' | 'order' | 'status'>,
@@ -329,6 +509,8 @@ class WebsiteCopyService {
 
     const newSection: DynamicWebsiteSection = {
       id: `sec-custom-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      sectionKey: `sec-custom-${Date.now()}`,
+      isCore: false,
       type: sectionData.type,
       title: sectionData.title,
       subtitle: sectionData.subtitle,
@@ -358,7 +540,7 @@ class WebsiteCopyService {
     authorName: string = 'Publicity Coordinator'
   ): Promise<DynamicWebsiteSection | null> {
     const draft = this.getDraftConfig();
-    const idx = draft.sections.findIndex(s => s.id === sectionId);
+    const idx = draft.sections.findIndex(s => s.id === sectionId || s.sectionKey === sectionId);
     if (idx === -1) return null;
 
     const existing = draft.sections[idx];
@@ -377,7 +559,7 @@ class WebsiteCopyService {
   }
 
   /**
-   * Reorder sections in the draft by providing an array of section IDs in the desired order.
+   * Reorder sections in the draft.
    */
   public async reorderSections(
     orderedIds: string[],
@@ -395,14 +577,14 @@ class WebsiteCopyService {
       }
     });
 
-    // Append any remaining unlisted sections
     let nextOrder = reordered.length + 1;
     sectionMap.forEach(sec => {
       reordered.push({ ...sec, order: nextOrder++ });
     });
 
-    await this.saveDraft({ sections: reordered }, authorName);
-    return reordered;
+    const ensured = ensureAllCoreSections(reordered);
+    await this.saveDraft({ sections: ensured }, authorName);
+    return ensured;
   }
 
   /**
@@ -419,27 +601,29 @@ class WebsiteCopyService {
 
   /**
    * Remove a custom dynamic section from the draft.
-   * Default core sections cannot be deleted, only hidden.
+   * Core sections cannot be deleted, only hidden.
    */
   public async deleteSection(
     sectionId: string,
     authorName: string = 'Publicity Coordinator'
   ): Promise<boolean> {
     const draft = this.getDraftConfig();
-    const isCoreSection = ['sec-hero', 'sec-about', 'sec-schedule', 'sec-life', 'sec-visit', 'sec-cta'].includes(sectionId);
+    const isCoreSection = CORE_SECTION_KEYS.includes(sectionId as CoreSectionKey) ||
+      draft.sections.find(s => s.id === sectionId && s.isCore);
+
     if (isCoreSection) {
-      // Core sections can only be hidden, not deleted
       await this.toggleSectionVisibility(sectionId, false, authorName);
       return true;
     }
 
-    const updatedSections = draft.sections.filter(s => s.id !== sectionId);
-    await this.saveDraft({ sections: updatedSections }, authorName);
+    const updatedSections = draft.sections.filter(s => s.id !== sectionId && s.sectionKey !== sectionId);
+    const ensured = ensureAllCoreSections(updatedSections);
+    await this.saveDraft({ sections: ensured }, authorName);
     return true;
   }
 
   /**
-   * Legacy method for saving copy directly (adapted to save draft).
+   * Legacy method for saving copy directly.
    */
   public async saveCopy(
     updatedCopy: Partial<WebsiteCopyModel>,
@@ -458,23 +642,6 @@ class WebsiteCopyService {
 
     const savedConfig = await this.saveDraft({ copy: nextCopy }, authorName);
     return savedConfig.copy;
-  }
-
-  /**
-   * Reset website copy and sections back to pristine system defaults.
-   */
-  public async resetCopy(authorName: string = 'System Admin'): Promise<WebsiteCopyModel> {
-    const resetConfig: WebsiteConfiguration = {
-      ...INITIAL_WEBSITE_CONFIG,
-      lastUpdated: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      updatedBy: authorName,
-      version: 1
-    };
-    localStorage.setItem(this.publishedCacheKey, JSON.stringify(resetConfig));
-    localStorage.setItem(this.draftCacheKey, JSON.stringify(resetConfig));
-    localStorage.setItem(this.legacyCopyCacheKey, JSON.stringify(resetConfig.copy));
-    this.notifyListeners();
-    return resetConfig.copy;
   }
 
   /**

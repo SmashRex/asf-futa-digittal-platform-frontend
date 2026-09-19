@@ -319,31 +319,34 @@ export default function BibleSearchPage({ activeVersionId }: BibleSearchPageProp
           </div>
 
           <div className="space-y-3">
-            {results.map((res, idx) => (
-              <div
-                key={idx}
-                onClick={() => handleResultClick(res.bookId, res.chapter, res.verse)}
-                className="bg-white border border-[#E4E4E7] rounded-xl p-4 hover:border-[#7A1F2B]/40 hover:shadow-2xs transition-all cursor-pointer group"
-                id={`search-result-item-${idx}`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-[#7A1F2B]" />
-                    <span className="text-sm font-bold text-[#7A1F2B]">
-                      {res.reference}
+            {results.map((res, idx) => {
+              const displayRef = res.reference || `${res.bookName || res.bookId} ${res.chapter}:${res.verse}`;
+              return (
+                <div
+                  key={idx}
+                  onClick={() => handleResultClick(res.bookId, res.chapter, res.verse)}
+                  className="bg-white border border-[#E4E4E7] rounded-xl p-4 hover:border-[#7A1F2B]/40 hover:shadow-2xs transition-all cursor-pointer group"
+                  id={`search-result-item-${idx}`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-[#7A1F2B]" />
+                      <span className="text-sm font-bold text-[#7A1F2B]">
+                        {displayRef}
+                      </span>
+                    </div>
+                    <span className="text-xs text-[#52525B] font-medium group-hover:text-[#7A1F2B] flex items-center gap-1 transition-colors">
+                      <span>Read in Bible</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </span>
                   </div>
-                  <span className="text-xs text-[#52525B] font-medium group-hover:text-[#7A1F2B] flex items-center gap-1 transition-colors">
-                    <span>Read in Bible</span>
-                    <ChevronRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
 
-                <p className="font-serif text-sm text-[#18181B] leading-relaxed pl-6 border-l-2 border-[#7A1F2B]/20 group-hover:border-[#7A1F2B] transition-colors">
-                  "{res.text}"
-                </p>
-              </div>
-            ))}
+                  <p className="font-serif text-sm text-[#18181B] leading-relaxed pl-6 border-l-2 border-[#7A1F2B]/20 group-hover:border-[#7A1F2B] transition-colors">
+                    "{res.text}"
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

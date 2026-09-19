@@ -41,7 +41,7 @@ import {
 
 export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
-  const { activeRole, contentItems, auditLogs, members, systemHealth, hasPermission } = useOutletContext<AdminContextType>();
+  const { activeRole, contentItems, members, systemHealth, hasPermission } = useOutletContext<AdminContextType>();
 
   // If the active role is VP / FS Coordinator, render the dedicated FS Coordinator Dashboard
   if (activeRole === 'VP / FS Coordinator') {
@@ -270,34 +270,6 @@ export const AdminDashboard: React.FC = () => {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Audit Log Activity Feed */}
-          <div className="bg-white rounded-2xl border border-[#E4E4E7] p-5 sm:p-6 shadow-sm space-y-4">
-            <h2 className="font-serif font-bold text-base sm:text-lg text-[#18181B] border-b border-[#E4E4E7] pb-3">
-              Recent Governance Audit Trail
-            </h2>
-
-            <div className="space-y-3">
-              {auditLogs.slice(0, 4).map((log, idx) => (
-                <div key={log.id ? `${log.id}-${idx}` : `audit-${idx}`} className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-                  <div className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-full bg-[#5B0617]/10 text-[#5B0617] flex items-center justify-center shrink-0 font-bold text-xs mt-0.5">
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-[#18181B]">
-                        {log.action} <span className="font-normal text-[#52525B]">on {log.target}</span>
-                      </h4>
-                      <p className="text-[11px] text-[#52525B] mt-0.5">{log.details}</p>
-                    </div>
-                  </div>
-                  <div className="text-[11px] text-[#52525B] shrink-0">
-                    <span>{log.actor} ({log.actorRole})</span> • <span className="font-medium text-[#18181B]">{log.timestamp}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
 
         </div>

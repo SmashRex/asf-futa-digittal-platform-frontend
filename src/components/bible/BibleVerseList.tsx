@@ -23,7 +23,7 @@ export const BibleVerseList: React.FC<BibleVerseListProps> = ({
   onVerseClick,
   className = ''
 }) => {
-  const targetRef = useRef<HTMLSpanElement | null>(null);
+  const targetRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (targetVerse && targetRef.current) {
@@ -36,35 +36,52 @@ export const BibleVerseList: React.FC<BibleVerseListProps> = ({
     return 'text-[#18181B]';
   };
 
+  const getVerseNumberColor = (isTarget: boolean) => {
+    if (theme === 'dark') {
+      return isTarget ? 'text-[#F59E0B]' : 'text-[#A1A1AA] group-hover:text-[#F59E0B]';
+    }
+    return isTarget ? 'text-[#7A1F2B]' : 'text-[#71717A] group-hover:text-[#7A1F2B]';
+  };
+
+  const getTargetBg = () => {
+    if (theme === 'dark') {
+      return 'bg-amber-950/40 ring-1 ring-amber-500/40 font-medium rounded-lg';
+    }
+    return 'bg-amber-50/80 ring-1 ring-amber-300/80 font-medium rounded-lg';
+  };
+
   return (
     <div 
-      className={`font-serif leading-relaxed text-justify sm:text-left select-text space-y-3 ${className}`}
-      style={{ fontSize: `${fontSize}px`, lineHeight: `${Math.round(fontSize * 1.65)}px` }}
+      className={`font-serif select-text space-y-2.5 sm:space-y-3 ${className}`}
       id="bible-verse-list-container"
     >
       {verses.map((v) => {
         const isTarget = targetVerse === v.number;
         return (
-          <span 
+          <div 
             key={v.number} 
             ref={isTarget ? targetRef : undefined}
             onClick={() => onVerseClick && onVerseClick(v)}
-            className={`inline group rounded transition-colors px-1 py-0.5 ${
+            className={`flex items-start gap-2.5 sm:gap-3.5 p-2 rounded-lg transition-all group ${
               isTarget 
-                ? 'bg-[#7A1F2B]/15 ring-2 ring-[#7A1F2B]/30 font-medium rounded-sm' 
-                : 'hover:bg-[#7A1F2B]/5'
+                ? getTargetBg()
+                : 'hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
             }`}
             id={`verse-item-${v.number}`}
           >
-            <sup className={`font-sans text-[0.65em] font-bold mr-1.5 select-none align-baseline ${
-              isTarget ? 'text-[#7A1F2B] underline' : 'text-[#7A1F2B]'
-            }`}>
+            <span 
+              className={`font-sans text-xs sm:text-sm font-bold min-w-[1.75rem] sm:min-w-[2rem] text-right shrink-0 select-none pt-0.5 transition-colors ${getVerseNumberColor(isTarget)}`}
+              aria-label={`Verse ${v.number}`}
+            >
               {v.number}
-            </sup>
-            <span className={getTextColor()}>
-              {v.text}{' '}
             </span>
-          </span>
+            <p 
+              className={`flex-1 text-left ${getTextColor()}`}
+              style={{ fontSize: `${fontSize}px`, lineHeight: `${Math.round(fontSize * 1.68)}px` }}
+            >
+              {v.text}
+            </p>
+          </div>
         );
       })}
     </div>

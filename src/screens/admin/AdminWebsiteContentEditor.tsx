@@ -44,14 +44,22 @@ import {
   Star,
   ExternalLink,
   Undo2,
-  Send
+  Send,
+  AlertCircle
 } from 'lucide-react';
 import { ControlledSection } from '../public/sections/ControlledSection';
 
 type SectionTab = 'sections' | 'hero' | 'about' | 'life' | 'visit' | 'cta' | string;
 
 export const AdminWebsiteContentEditor: React.FC = () => {
-  const { activeRole, addAuditLog } = useOutletContext<AdminContextType>();
+  const { activeRole } = useOutletContext<AdminContextType>();
+
+  // Permission Checks:
+  // Draft read/save/discard: Publicity Coordinator, Technical Admin (mapped from Technical Administrator)
+  // Publish/reset: Publicity Coordinator, President (mapped from President / Executive), General Secretary
+  // Note: Technical Administrator MUST NOT be authorized to publish or reset the website.
+  const canEditDraft = activeRole === 'Publicity Coordinator' || activeRole === 'Technical Administrator';
+  const canPublishOrReset = activeRole === 'Publicity Coordinator' || activeRole === 'President / Executive' || activeRole === 'General Secretary';
   
   // Authoritative configurations
   const [draftConfig, setDraftConfig] = useState<WebsiteConfiguration>(() => websiteCopyService.getDraftConfig());
@@ -63,6 +71,9 @@ export const AdminWebsiteContentEditor: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SectionTab>('sections');
   
   // Feedback and modal states
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
@@ -90,6 +101,35 @@ export const AdminWebsiteContentEditor: React.FC = () => {
     { id: 'item-3', title: 'Campus Outreach', description: 'Sharing Christ across campus.' }
   ]);
 
+  const loadData = () => {
+    setIsLoading(true);
+    setLoadError(null);
+    setActionError(null);
+
+    Promise.all([
+      websiteCopyService.fetchDraftConfig(),
+      websiteCopyService.fetchPublishedConfig()
+    ])
+      .then(([draft, published]) => {
+        setDraftConfig(draft);
+        setPublishedConfig(published);
+        setCopy(draft.copy);
+        setSections(draft.sections);
+      })
+      .catch((err) => {
+        console.error('[AdminWebsiteContentEditor] Fetch error:', err);
+        setLoadError(err?.message || 'Failed to load website configuration from server.');
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  };
+
+  // Initial load from backend
+  useEffect(() => {
+    loadData();
+  }, []);
+
   // Sync state if service updates
   useEffect(() => {
     const unsubscribe = websiteCopyService.subscribe(() => {
@@ -113,7 +153,9 @@ export const AdminWebsiteContentEditor: React.FC = () => {
 
   // Save Working Draft (does not affect live website)
   const handleSaveDraft = async () => {
+    if (!canEditDraft) return;
     setIsSavingDraft(true);
+    setActionError(null);
     try {
       const updated = await websiteCopyService.saveDraft({
         copy,
@@ -123,16 +165,9 @@ export const AdminWebsiteContentEditor: React.FC = () => {
       setDraftConfig(updated);
       setSaveSuccessMsg('Draft saved successfully! (Unpublished)');
       setTimeout(() => setSaveSuccessMsg(null), 3500);
-
-      if (addAuditLog) {
-        addAuditLog(
-          'UPDATE_WEBSITE_DRAFT',
-          `Draft v${updated.version}`,
-          `Publicity Coordinator saved website draft changes.`
-        );
-      }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to save draft:', e);
+      setActionError(e?.message || 'Failed to save draft.');
     } finally {
       setIsSavingDraft(false);
     }
@@ -140,8 +175,10 @@ export const AdminWebsiteContentEditor: React.FC = () => {
 
   // Publish Draft Live (increments version and updates live public site)
   const handlePublishLive = async () => {
+    if (!canPublishOrReset) return;
     setIsPublishing(true);
     setIsPublishConfirmOpen(false);
+    setActionError(null);
     try {
       // First ensure draft is up to date
       await websiteCopyService.saveDraft({ copy, sections }, activeRole);
@@ -152,33 +189,37 @@ export const AdminWebsiteContentEditor: React.FC = () => {
       setDraftConfig(published);
       setSaveSuccessMsg(`Published live! Website is now running v${published.version}.`);
       setTimeout(() => setSaveSuccessMsg(null), 4000);
-
-      if (addAuditLog) {
-        addAuditLog(
-          'PUBLISH_WEBSITE',
-          `v${published.version}`,
-          `Published live website version v${published.version} by ${activeRole}.`
-        );
-      }
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to publish website:', e);
+      setActionError(e?.message || 'Failed to publish live website.');
     } finally {
       setIsPublishing(false);
     }
   };
 
   // Discard draft changes and restore live published state
-  const handleDiscardDraft = () => {
-    const reverted = websiteCopyService.discardDraft();
-    setDraftConfig(reverted);
-    setCopy(reverted.copy);
-    setSections(reverted.sections);
-    setSaveSuccessMsg('Draft discarded. Restored live published version.');
-    setTimeout(() => setSaveSuccessMsg(null), 3000);
+  const handleDiscardDraft = async () => {
+    if (!canEditDraft) return;
+    setIsSavingDraft(true);
+    setActionError(null);
+    try {
+      const reverted = await websiteCopyService.discardDraft();
+      setDraftConfig(reverted);
+      setCopy(reverted.copy);
+      setSections(reverted.sections);
+      setSaveSuccessMsg('Draft discarded. Restored live published version.');
+      setTimeout(() => setSaveSuccessMsg(null), 3000);
+    } catch (e: any) {
+      console.error('Failed to discard draft:', e);
+      setActionError(e?.message || 'Failed to discard draft.');
+    } finally {
+      setIsSavingDraft(false);
+    }
   };
 
   // Reorder Sections
   const handleMoveSection = async (index: number, direction: 'up' | 'down') => {
+    if (!canEditDraft) return;
     const targetIdx = direction === 'up' ? index - 1 : index + 1;
     if (targetIdx < 0 || targetIdx >= sections.length) return;
 
@@ -189,92 +230,108 @@ export const AdminWebsiteContentEditor: React.FC = () => {
     // Update order indices
     const updated = newSections.map((s, idx) => ({ ...s, order: idx + 1 }));
     setSections(updated);
-    await websiteCopyService.saveDraft({ sections: updated }, activeRole);
+    try {
+      await websiteCopyService.saveDraft({ sections: updated }, activeRole);
+    } catch (e: any) {
+      setActionError(e?.message || 'Failed to reorder sections.');
+    }
   };
 
   // Toggle Section Visibility
   const handleToggleVisibility = async (sectionId: string, currentVisibility: boolean) => {
+    if (!canEditDraft) return;
     const updated = sections.map(s => s.id === sectionId ? { ...s, isVisible: !currentVisibility } : s);
     setSections(updated);
-    await websiteCopyService.saveDraft({ sections: updated }, activeRole);
+    try {
+      await websiteCopyService.saveDraft({ sections: updated }, activeRole);
+    } catch (e: any) {
+      setActionError(e?.message || 'Failed to update section visibility.');
+    }
   };
 
   // Delete Custom Section
   const handleDeleteSection = async (sectionId: string) => {
+    if (!canEditDraft) return;
     const updated = sections.filter(s => s.id !== sectionId);
     setSections(updated);
     if (activeTab === sectionId) {
       setActiveTab('sections');
     }
-    await websiteCopyService.saveDraft({ sections: updated }, activeRole);
+    try {
+      await websiteCopyService.saveDraft({ sections: updated }, activeRole);
+    } catch (e: any) {
+      setActionError(e?.message || 'Failed to delete section.');
+    }
   };
 
   // Add Section Submit
   const handleAddSectionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newSectionTitle.trim()) return;
+    if (!newSectionTitle.trim() || !canEditDraft) return;
+    setActionError(null);
 
-    const newSection = await websiteCopyService.addSection({
-      type: newSectionType,
-      title: newSectionTitle.trim(),
-      subtitle: newSectionSubtitle.trim() || undefined,
-      description: newSectionDesc.trim() || undefined,
-      imageUrl: newSectionImageUrl.trim() || undefined,
-      items: ['feature_grid', 'card_grid'].includes(newSectionType) ? newSectionItems : undefined,
-      configuration: {
-        background: newSectionBg,
-        alignment: newSectionAlign,
-        layout: newSectionLayout,
-        showCta: newSectionShowCta,
-        ctaText: newSectionCtaText,
-        ctaLink: newSectionCtaLink,
-        badge: newSectionBadge.trim() || undefined
-      },
-      isVisible: true
-    }, activeRole);
+    try {
+      const newSection = await websiteCopyService.addSection({
+        type: newSectionType,
+        title: newSectionTitle.trim(),
+        subtitle: newSectionSubtitle.trim() || undefined,
+        description: newSectionDesc.trim() || undefined,
+        imageUrl: newSectionImageUrl.trim() || undefined,
+        items: ['feature_grid', 'card_grid'].includes(newSectionType) ? newSectionItems : undefined,
+        configuration: {
+          background: newSectionBg,
+          alignment: newSectionAlign,
+          layout: newSectionLayout,
+          showCta: newSectionShowCta,
+          ctaText: newSectionCtaText,
+          ctaLink: newSectionCtaLink,
+          badge: newSectionBadge.trim() || undefined
+        },
+        isVisible: true
+      }, activeRole);
 
-    const freshDraft = websiteCopyService.getDraftConfig();
-    setDraftConfig(freshDraft);
-    setSections(freshDraft.sections);
-    setIsAddSectionModalOpen(false);
-    setActiveTab(newSection.id);
-    
-    // Reset modal form
-    setNewSectionTitle('');
-    setNewSectionSubtitle('');
-    setNewSectionDesc('');
-    setNewSectionBadge('');
-    setNewSectionImageUrl('');
+      const freshDraft = websiteCopyService.getDraftConfig();
+      setDraftConfig(freshDraft);
+      setSections(freshDraft.sections);
+      setIsAddSectionModalOpen(false);
+      setActiveTab(newSection.id);
+      
+      // Reset modal form
+      setNewSectionTitle('');
+      setNewSectionSubtitle('');
+      setNewSectionDesc('');
+      setNewSectionBadge('');
+      setNewSectionImageUrl('');
 
-    setSaveSuccessMsg(`Added new "${newSection.title}" section to draft!`);
-    setTimeout(() => setSaveSuccessMsg(null), 3500);
+      setSaveSuccessMsg(`Added new "${newSection.title}" section to draft!`);
+      setTimeout(() => setSaveSuccessMsg(null), 3500);
+    } catch (e: any) {
+      console.error('Failed to add section:', e);
+      setActionError(e?.message || 'Failed to add section.');
+    }
   };
 
   // Reset to Defaults
   const handleResetToDefault = async () => {
+    if (!canPublishOrReset) return;
     setIsSavingDraft(true);
     setIsResetConfirmOpen(false);
+    setActionError(null);
     try {
-      const resetCopy = await websiteCopyService.resetCopy(activeRole);
+      const resetConfig = await websiteCopyService.resetCopy(activeRole);
       const freshDraft = websiteCopyService.getDraftConfig();
       const freshPublished = websiteCopyService.getPublishedConfig();
       setDraftConfig(freshDraft);
       setPublishedConfig(freshPublished);
-      setCopy(resetCopy);
+      setCopy(resetConfig.copy);
       setSections(freshDraft.sections);
       setActiveTab('sections');
       
-      if (addAuditLog) {
-        addAuditLog(
-          'RESET_WEBSITE_COPY',
-          `v1`,
-          `Reset all landing page copy and sections back to standard system defaults.`
-        );
-      }
       setSaveSuccessMsg('Reset all website copy and sections to system defaults.');
       setTimeout(() => setSaveSuccessMsg(null), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error('Failed to reset copy:', e);
+      setActionError(e?.message || 'Failed to reset website content.');
     } finally {
       setIsSavingDraft(false);
     }
@@ -321,7 +378,7 @@ export const AdminWebsiteContentEditor: React.FC = () => {
           </div>
 
           {/* Discard / Revert Button */}
-          {isDraftModified && (
+          {canEditDraft && isDraftModified && (
             <button
               onClick={handleDiscardDraft}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-[#52525B] hover:text-[#18181B] hover:bg-stone-100 border border-[#E4E4E7] transition-colors"
@@ -333,35 +390,70 @@ export const AdminWebsiteContentEditor: React.FC = () => {
           )}
 
           {/* Save Draft Button */}
-          <button
-            onClick={handleSaveDraft}
-            disabled={isSavingDraft || isPublishing}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#18181B] bg-white hover:bg-stone-50 border border-[#E4E4E7] shadow-sm transition-all"
-          >
-            <Save className="w-3.5 h-3.5 text-[#5B0617]" />
-            <span>{isSavingDraft ? 'Saving Draft...' : 'Save Draft'}</span>
-          </button>
+          {canEditDraft && (
+            <button
+              onClick={handleSaveDraft}
+              disabled={isSavingDraft || isPublishing}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-[#18181B] bg-white hover:bg-stone-50 border border-[#E4E4E7] shadow-sm transition-all"
+            >
+              <Save className="w-3.5 h-3.5 text-[#5B0617]" />
+              <span>{isSavingDraft ? 'Saving Draft...' : 'Save Draft'}</span>
+            </button>
+          )}
 
           {/* Publish Website Button */}
-          <button
-            onClick={() => setIsPublishConfirmOpen(true)}
-            disabled={isSavingDraft || isPublishing}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#5B0617] hover:bg-[#480512] shadow-sm shadow-[#5B0617]/20 transition-all"
-          >
-            <Send className="w-3.5 h-3.5" />
-            <span>{isPublishing ? 'Publishing...' : 'Publish to Website'}</span>
-          </button>
+          {canPublishOrReset && (
+            <button
+              onClick={() => setIsPublishConfirmOpen(true)}
+              disabled={isSavingDraft || isPublishing}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#5B0617] hover:bg-[#480512] shadow-sm shadow-[#5B0617]/20 transition-all"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>{isPublishing ? 'Publishing...' : 'Publish to Website'}</span>
+            </button>
+          )}
 
           {/* Reset Defaults */}
-          <button
-            onClick={() => setIsResetConfirmOpen(true)}
-            className="p-2 rounded-xl text-[#71717A] hover:text-amber-600 hover:bg-amber-50 transition-colors"
-            title="Reset website to system defaults"
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
+          {canPublishOrReset && (
+            <button
+              onClick={() => setIsResetConfirmOpen(true)}
+              className="p-2 rounded-xl text-[#71717A] hover:text-amber-600 hover:bg-amber-50 transition-colors"
+              title="Reset website to system defaults"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Load Error Banner */}
+      {loadError && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-900 p-4 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span>{loadError}</span>
+          </div>
+          <button
+            onClick={loadData}
+            className="px-3 py-1.5 bg-rose-700 text-white rounded-xl font-bold hover:bg-rose-800 transition-colors"
+          >
+            Retry Loading
+          </button>
+        </div>
+      )}
+
+      {/* Action Error Banner */}
+      {actionError && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900">
+            &times;
+          </button>
+        </div>
+      )}
 
       {/* Success Banner Notification */}
       {saveSuccessMsg && (

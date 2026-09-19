@@ -8,7 +8,7 @@ import { ContentStatus } from '../../types/adminTypes';
 import { CheckCircle2, Clock, FileEdit, AlertCircle, Archive, ShieldCheck, UserCheck, UserX, UserPlus } from 'lucide-react';
 
 interface StatusBadgeProps {
-  status: ContentStatus | 'Active' | 'Pending Approval' | 'Suspended' | 'Alumni';
+  status: ContentStatus | 'Active' | 'Pending Approval' | 'Suspended' | 'Alumni' | 'Cancelled' | 'Upcoming' | 'Happening Today' | 'Past' | 'Starting Soon' | 'Tomorrow';
   size?: 'sm' | 'md';
 }
 
@@ -53,6 +53,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({ status, size = 'md' })
       );
     case 'Revision Requested':
     case 'Suspended':
+    case 'Cancelled':
       const dangerStatus = status === 'Revision Requested' ? 'Needs Revision' : status;
       return (
         <span className={`${baseClasses} bg-rose-50 text-rose-800 border border-rose-200/80 ${getSizeClasses()}`}>

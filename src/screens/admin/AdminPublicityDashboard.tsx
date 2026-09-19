@@ -102,7 +102,7 @@ export const AdminPublicityDashboard: React.FC = () => {
               Manage Events
             </h3>
             <p className="text-xs sm:text-sm text-[#52525B] mt-0.5">
-              Update event details, RSVPs, registration forms, and promotional banners.
+              Update event schedules, program locations, speakers, and promotional banners.
             </p>
           </div>
           <ChevronRight className="w-5 h-5 text-[#E4E4E7] group-hover:text-[#5B0617] group-hover:translate-x-1 transition-all shrink-0" />

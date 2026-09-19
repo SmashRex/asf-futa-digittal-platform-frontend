@@ -275,9 +275,19 @@ export const AdminContentLibrary: React.FC = () => {
                     <td className="p-3.5 pl-5">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-[#5B0617]">
-                          <span>LESSON {item.lessonNumber || 1}</span>
-                          <span>•</span>
-                          <span className="text-[#52525B]">{item.type}</span>
+                          {item.type === 'Announcement' ? (
+                            <>
+                              <span>ANNOUNCEMENT</span>
+                              <span>•</span>
+                              <span className="text-[#52525B]">{item.category || 'General'}</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>LESSON {item.lessonNumber || 1}</span>
+                              <span>•</span>
+                              <span className="text-[#52525B]">{item.type}</span>
+                            </>
+                          )}
                         </div>
                         <p 
                           className="font-serif font-bold text-sm text-[#18181B] hover:text-[#5B0617] cursor-pointer" 
@@ -288,13 +298,15 @@ export const AdminContentLibrary: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="p-3.5 font-medium text-[#18181B]">
-                      {item.keyScripture || 'Matthew 5:1-12'}
+                    <td className="p-3.5 font-medium text-[#18181B] max-w-xs truncate">
+                      {item.type === 'Announcement'
+                        ? (item.summary || item.introduction || 'Publicity Notice')
+                        : (item.keyScripture || 'Matthew 5:1-12')}
                     </td>
 
                     <td className="p-3.5">
                       <p className="font-medium text-[#18181B]">{item.author}</p>
-                      <p className="text-[10px] text-[#52525B]">{item.authorRole || 'Bible Study Coordinator'}</p>
+                      <p className="text-[10px] text-[#52525B]">{item.authorRole || (item.type === 'Announcement' ? 'Publicity Coordinator' : 'Bible Study Coordinator')}</p>
                     </td>
 
                     <td className="p-3.5">
@@ -318,7 +330,7 @@ export const AdminContentLibrary: React.FC = () => {
                         <button
                           onClick={() => navigate(`/admin/content/edit/${item.id}`)}
                           className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-[#18181B] transition-colors"
-                          title="Edit Study Outline"
+                          title="Edit Content"
                         >
                           <FileEdit className="w-3.5 h-3.5" />
                         </button>
@@ -335,7 +347,7 @@ export const AdminContentLibrary: React.FC = () => {
                         <button
                           onClick={() => setDeleteModalItem(item)}
                           className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 transition-colors"
-                          title="Archive / Delete Study"
+                          title="Archive / Delete"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -355,12 +367,19 @@ export const AdminContentLibrary: React.FC = () => {
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
                       <StatusBadge status={item.status} size="sm" />
-                      <span className="text-[11px] font-bold text-[#5B0617]">LESSON {item.lessonNumber || 1}</span>
+                      <span className="text-[11px] font-bold text-[#5B0617]">
+                        {item.type === 'Announcement' ? (item.category || 'NOTICE') : `LESSON ${item.lessonNumber || 1}`}
+                      </span>
                     </div>
                     <h3 className="font-serif font-bold text-base text-[#18181B]">
                       {item.title}
                     </h3>
-                    <p className="text-xs text-[#52525B]">Scripture: <strong className="text-[#18181B]">{item.keyScripture || 'Matthew 5:1-12'}</strong></p>
+                    <p className="text-xs text-[#52525B]">
+                      {item.type === 'Announcement' ? 'Notice: ' : 'Scripture: '}
+                      <strong className="text-[#18181B]">
+                        {item.type === 'Announcement' ? (item.summary || item.introduction || 'Publicity Notice') : (item.keyScripture || 'Matthew 5:1-12')}
+                      </strong>
+                    </p>
                   </div>
                 </div>
 

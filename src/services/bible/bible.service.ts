@@ -229,8 +229,28 @@ export const bibleService = {
     }
     const translationId = (versionId || 'KJV').toUpperCase();
     const res = await apiClient.get<any>(`/bible/search?q=${encodeURIComponent(query)}&translationId=${encodeURIComponent(translationId)}&limit=${limit}`);
-    const results = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : res.data?.results || []);
-    return results;
+    const rawResults = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.data) ? res.data.data : res.data?.results || []);
+    
+    return rawResults.map((item: any): BibleSearchResult => {
+      const rawBookId = item.bookId || item.book_id || item.book || item.code || '';
+      const canonicalBookId = normalizeBookId(rawBookId) || rawBookId;
+      const humanBookName = item.bookName || item.book_name || item.name || (canonicalBookId ? getBookNameById(canonicalBookId) : '') || rawBookId;
+      const chapterNum = Number(item.chapter ?? item.chapterNumber ?? item.chapter_number ?? item.chapterId ?? 1);
+      const verseNum = Number(item.verse ?? item.verseNumber ?? item.verse_number ?? item.verseId ?? item.number ?? 1);
+      const textContent = item.text || item.content || item.verseText || item.verse_text || '';
+      const formattedReference = item.reference && !item.reference.includes('-')
+        ? item.reference
+        : (humanBookName ? `${humanBookName} ${chapterNum}:${verseNum}` : (canonicalBookId ? `${getBookNameById(canonicalBookId)} ${chapterNum}:${verseNum}` : item.reference || ''));
+
+      return {
+        reference: formattedReference,
+        bookId: canonicalBookId,
+        bookName: humanBookName,
+        chapter: chapterNum,
+        verse: verseNum,
+        text: textContent
+      };
+    });
   },
 
   async search(query: string, versionId: string = 'kjv'): Promise<BibleSearchResult[]> {

@@ -116,8 +116,21 @@ export interface WebsiteSectionItem {
   linkUrl?: string;
 }
 
+export const CORE_SECTION_KEYS = [
+  'sec-hero',
+  'sec-about',
+  'sec-schedule',
+  'sec-life',
+  'sec-visit',
+  'sec-cta',
+] as const;
+
+export type CoreSectionKey = typeof CORE_SECTION_KEYS[number];
+
 export interface DynamicWebsiteSection {
   id: string;
+  sectionKey?: string;
+  isCore?: boolean;
   type: ControlledSectionType;
   title: string;
   subtitle?: string;

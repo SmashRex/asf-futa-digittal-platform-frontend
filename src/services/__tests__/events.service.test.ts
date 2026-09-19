@@ -8,7 +8,7 @@ import { eventsService } from '../events/events.service';
 
 describe('Events Service', () => {
   it('should fetch upcoming events in mock mode', async () => {
-    const events = await eventsService.getEvents({ horizon: 'upcoming' });
+    const events = await eventsService.getEvents({ filter: 'upcoming' });
     expect(Array.isArray(events)).toBe(true);
     expect(events.length).toBeGreaterThan(0);
   });

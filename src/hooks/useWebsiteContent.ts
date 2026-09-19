@@ -14,6 +14,10 @@ export function useWebsiteContent(): WebsiteCopyModel {
   const [copy, setCopy] = useState<WebsiteCopyModel>(() => websiteContentService.getCopy());
 
   useEffect(() => {
+    websiteContentService.fetchPublishedConfig()
+      .then(config => setCopy(config.copy))
+      .catch(err => console.warn('[useWebsiteContent] Failed to fetch published copy:', err));
+
     const unsubscribe = websiteContentService.subscribe(() => {
       setCopy(websiteContentService.getCopy());
     });
@@ -31,10 +35,31 @@ export function useWebsiteConfiguration(): {
   config: WebsiteConfiguration;
   sections: DynamicWebsiteSection[];
   copy: WebsiteCopyModel;
+  isLoading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
 } {
   const [config, setConfig] = useState<WebsiteConfiguration>(() => websiteContentService.getPublishedConfig());
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchConfig = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await websiteContentService.fetchPublishedConfig();
+      setConfig(data);
+    } catch (err: any) {
+      console.warn('[useWebsiteConfiguration] Failed to fetch published config:', err);
+      setError(err?.message || 'Failed to load website configuration');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
+    fetchConfig();
+
     const unsubscribe = websiteContentService.subscribe(() => {
       setConfig(websiteContentService.getPublishedConfig());
     });
@@ -49,7 +74,10 @@ export function useWebsiteConfiguration(): {
   return {
     config,
     sections: sortedSections,
-    copy: config.copy
+    copy: config.copy,
+    isLoading,
+    error,
+    refresh: fetchConfig
   };
 }
 
@@ -59,15 +87,31 @@ export function useWebsiteConfiguration(): {
 export function useWebsiteDraftConfiguration(): {
   draft: WebsiteConfiguration;
   sections: DynamicWebsiteSection[];
-  refreshDraft: () => void;
+  isLoading: boolean;
+  error: string | null;
+  refreshDraft: () => Promise<void>;
 } {
   const [draft, setDraft] = useState<WebsiteConfiguration>(() => websiteContentService.getDraftConfig());
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const refreshDraft = () => {
-    setDraft(websiteContentService.getDraftConfig());
+  const fetchDraft = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await websiteContentService.fetchDraftConfig();
+      setDraft(data);
+    } catch (err: any) {
+      console.warn('[useWebsiteDraftConfiguration] Failed to fetch draft config:', err);
+      setError(err?.message || 'Failed to load website draft');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   useEffect(() => {
+    fetchDraft();
+
     const unsubscribe = websiteContentService.subscribe(() => {
       setDraft(websiteContentService.getDraftConfig());
     });
@@ -80,7 +124,9 @@ export function useWebsiteDraftConfiguration(): {
   return {
     draft,
     sections: sortedSections,
-    refreshDraft
+    isLoading,
+    error,
+    refreshDraft: fetchDraft
   };
 }
 
