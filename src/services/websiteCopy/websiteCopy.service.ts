@@ -23,7 +23,7 @@ export const DEFAULT_WEBSITE_COPY: WebsiteCopyModel = {
   },
   about: {
     headline: "We Follow Jesus Together.",
-    description: "ASF means Anglican Students' Fellowship. We're a community of students who desire to know Christ, grow in God's Word, live faithfully, and encourage one another throughout our university journey. Here, faith isn't something we practise alone — it becomes part of everyday student life.",
+    description: "ASF means Anglican Students' Fellowship. We're a community of students who desire to know Christ, grow in God's Word, live faithfully, and encourage one another throughout our university journey. Here, faith isn't something we practise alone, it becomes part of everyday student life.",
     worshipTitle: "We Worship",
     worshipDesc: "We lift our voices, open our hearts, and gather simply to give God praise.",
     learnTitle: "We Learn",

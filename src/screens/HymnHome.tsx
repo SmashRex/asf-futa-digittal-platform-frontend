@@ -244,28 +244,6 @@ export default function HymnHome({
         </section>
       )}
 
-      {/* Offline Simulator Controls Bar */}
-      <div className="bg-[#FAF8F5] border border-[var(--color-border)] p-3 rounded-xl flex items-center justify-between text-xs" id="hymn-simulator-bar">
-        <div className="flex items-center gap-2 text-[var(--color-text-secondary)]">
-          <WifiOff className={`w-4 h-4 ${isOfflineSimulated ? 'text-[var(--color-error)]' : 'text-[var(--color-text-light)]'}`} />
-          <div>
-            <p className="font-semibold text-[var(--color-text-primary)]">Offline State Simulator</p>
-            <p className="text-[10px] text-[var(--color-text-secondary)]">Test offline reading for bundled vs online hymns</p>
-          </div>
-        </div>
-        <button
-          onClick={onToggleOffline}
-          className={`px-3 py-1 rounded-lg font-bold transition-all border cursor-pointer ${
-            isOfflineSimulated 
-              ? 'bg-red-50 text-[var(--color-error)] border-red-200' 
-              : 'bg-white text-[var(--color-text-secondary)] border-[var(--color-border)]'
-          }`}
-          id="hymn-offline-toggle-btn"
-        >
-          {isOfflineSimulated ? 'Offline' : 'Online'}
-        </button>
-      </div>
-
       {/* Offline Alert Banner */}
       {isOfflineSimulated && (
         <div className="hymn-offline space-y-1 text-center" id="hymn-offline-alert">

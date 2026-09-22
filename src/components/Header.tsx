@@ -38,19 +38,22 @@ export default function Header({
         </div>
       </button>
 
-      {/* Center Brand header */}
+      {/* Center Brand header - Responsive container holding official logo asset and FUTA label */}
       <div 
         onClick={() => navigate('/home')}
-        className="flex items-center gap-2 cursor-pointer hover:opacity-90 active:scale-[0.98] transition-all py-1"
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            navigate('/home');
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        className="flex items-center cursor-pointer hover:opacity-90 active:scale-[0.98] transition-all py-1 px-1 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]"
         id="brand-header-trigger"
+        aria-label="ASF FUTA Home"
       >
-        <Logo size="sm" theme="maroon" />
-        <span className="font-serif font-bold text-lg text-[var(--color-primary)] tracking-wide hidden sm:inline">
-          ASF Digital Platform
-        </span>
-        <span className="font-serif font-bold text-lg text-[var(--color-primary)] tracking-wide sm:hidden">
-          ASF FUTA
-        </span>
+        <Logo size="sm" theme="maroon" variant="futa" />
       </div>
 
       {/* Right Notifications bell */}

@@ -32,12 +32,17 @@ export interface BibleStudyItem {
   id: string;
   lessonNumber: number;
   title: string;
+  topic?: string;
   theme?: string;
   annualTheme?: string;
   subTheme: string;
   date: string;
+  scheduledDate?: string;
+  studyDate?: string;
   keyScripture: string;
+  textRef?: string;
   textScriptures?: string[];
+  textContent?: string | null;
   references?: BibleReference[];
   summary: string;
   aims?: string[];
@@ -58,6 +63,71 @@ export interface BibleStudyItem {
   metadata?: Record<string, any>;
   isCurrent: boolean;
   isPublished: boolean;
+  publicationStatus?: 'draft' | 'published';
+  seriesId?: string;
+  seriesTitle?: string;
+  academicSessionId?: string;
+}
+
+export interface BibleStudySeriesLessonPayload {
+  lessonNumber: number;
+  title?: string;
+  topic: string;
+  theme?: string;
+  textRef?: string;
+  textContent?: string;
+  aim?: string;
+  introduction?: string;
+  studyGuide?: string[];
+  discussionQuestions?: string[];
+  conclusion?: string;
+  memoryVerse?: {
+    text: string;
+    reference: string;
+  };
+  memoryVerseRef?: string;
+  memoryVerseText?: string;
+  prayerPoints?: string[];
+}
+
+export interface CreateBibleStudySeriesPayload {
+  title?: string;
+  theme: string;
+  startDate: string; // YYYY-MM-DD (must be a Tuesday)
+  academicSessionId?: string;
+  lessons: BibleStudySeriesLessonPayload[];
+}
+
+export interface BibleStudySeriesLessonResponse {
+  id: string;
+  lessonNumber: number;
+  title: string;
+  topic?: string;
+  scheduledDate: string;
+  publicationStatus: 'draft' | 'published';
+}
+
+export interface BibleStudySeriesResponseData {
+  series: {
+    id: string;
+    title?: string;
+    startDate: string;
+    status: string;
+    theme?: string;
+    academicSessionId?: string;
+  };
+  theme?: string;
+  lessons: BibleStudySeriesLessonResponse[];
+}
+
+export interface BibleStudySeriesDetail {
+  id: string;
+  title?: string;
+  theme?: string;
+  startDate: string;
+  status: string;
+  academicSessionId?: string;
+  lessons: BibleStudySeriesLessonResponse[];
 }
 
 export interface DetectedScriptureReference {

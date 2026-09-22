@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
-import { Mail, ArrowLeft, ChevronRight, Lock, Eye, EyeOff, HelpCircle, Sparkles } from 'lucide-react';
+import { Mail, ArrowLeft, ChevronRight, Lock, Sparkles, HelpCircle } from 'lucide-react';
 import Input from '../components/common/Input';
 import { authService } from '../services/auth/auth.service';
 import { UserProfile } from '../types';
@@ -24,7 +24,6 @@ export default function SignIn({ onLoginSuccess }: SignInProps) {
   // Form Fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   
   // Validation & Loading State
   const [error, setError] = useState('');
@@ -124,7 +123,7 @@ export default function SignIn({ onLoginSuccess }: SignInProps) {
         </h1>
         <p className="text-[var(--color-text-secondary)] text-sm mt-1">
           {authMode === 'password'
-            ? 'Enter your fellowship credentials to access your account'
+            ? 'Enter your credentials.'
             : 'Enter your registered email address for a secure magic link'}
         </p>
       </div>
@@ -152,35 +151,24 @@ export default function SignIn({ onLoginSuccess }: SignInProps) {
           {/* Password input - only in password mode */}
           {authMode === 'password' && (
             <div className="space-y-1">
-              <div className="relative">
-                <Input
-                  id="signin-password-input"
-                  label="Password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  leadingIcon={Lock}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-[38px] text-[var(--color-text-light)] hover:text-[var(--color-text-primary)] transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  id="signin-toggle-password-btn"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+              <Input
+                id="signin-password-input"
+                label="Password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                leadingIcon={Lock}
+                disabled={isLoading}
+              />
 
               {/* Forgot password subtle guidance */}
               <div className="pt-1 text-right">
                 <p className="text-xs text-[var(--color-text-secondary)]" id="signin-forgot-password-note">
                   Forgot your password?{' '}
                   <span className="text-[var(--color-text-primary)] font-medium">
-                    Contact your fellowship&apos;s Technical Administrator.
+                    Contact the Publicity Coordinator.
                   </span>
                 </p>
               </div>

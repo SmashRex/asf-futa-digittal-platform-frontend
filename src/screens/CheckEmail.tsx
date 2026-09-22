@@ -6,7 +6,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Logo from '../components/Logo';
-import { Mail, ArrowLeft, RefreshCw, Sparkles, ExternalLink } from 'lucide-react';
+import { Mail, ArrowLeft, RefreshCw, Sparkles } from 'lucide-react';
 
 export default function CheckEmail() {
   const location = useLocation();
@@ -15,14 +15,6 @@ export default function CheckEmail() {
   // Get email from router state (fallback if none provided directly)
   const stateData = location.state || {};
   const email = stateData.email || 'brother@asf-futa.org';
-
-  const handleSimulateClick = () => {
-    // Route to canonical /auth/verify state with a mock verification token
-    const mockToken = `simulated_magic_token_${Date.now()}`;
-    navigate(`/auth/verify?token=${mockToken}&email=${encodeURIComponent(email)}`, { 
-      state: { ...stateData, token: mockToken, email } 
-    });
-  };
 
   return (
     <div className="flex-1 flex flex-col justify-center px-6 py-12 max-w-md mx-auto w-full" id="check-email-screen">
@@ -65,33 +57,12 @@ export default function CheckEmail() {
           </p>
         </div>
 
-        {/* Real-world offline hint */}
+        {/* Real-world instructions */}
         <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[var(--color-border)] text-left text-xs text-[var(--color-text-secondary)] leading-relaxed space-y-1.5">
           <p className="font-semibold text-[var(--color-text-primary)]">What to do next:</p>
-          <p>1. Open your mail client app on this or another device.</p>
+          <p>1. Open your email client on this or another device.</p>
           <p>2. Tap the confirmation link button in the email from Anglican Students' Fellowship FUTA.</p>
-          <p>3. You will be authenticated instantly on this platform.</p>
-        </div>
-
-        {/* Demo simulator panel */}
-        <div className="border-t border-dashed border-[var(--color-border)] pt-5">
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-left mb-4">
-            <p className="text-[11px] font-bold tracking-wide uppercase text-amber-800 flex items-center gap-1">
-              <span>Demo Simulation Panel</span>
-            </p>
-            <p className="text-xs text-amber-700 mt-1">
-              Because this is a frontend-only mock environment, tap the button below to simulate opening the email and clicking the magic authorization link.
-            </p>
-          </div>
-
-          <button
-            onClick={handleSimulateClick}
-            className="btn-primary w-full flex items-center justify-center gap-2"
-            id="simulate-magic-link-btn"
-          >
-            <ExternalLink className="w-4 h-4" />
-            <span>Simulate Mail Link Click</span>
-          </button>
+          <p>3. You will be authenticated securely on this platform.</p>
         </div>
       </div>
 

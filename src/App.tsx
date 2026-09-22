@@ -1041,10 +1041,12 @@ function AppContent() {
       {/* Fallback route redirection */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
-    <DevToolsDrawer 
-      currentRole={currentUser?.role || devState.simulatedRoleOverride || 'Member'} 
-      onRoleChange={handleRoleChange} 
-    />
+    {APP_CONFIG.features.enableDevSimulations && (
+      <DevToolsDrawer 
+        currentRole={currentUser?.role || devState.simulatedRoleOverride || 'Member'} 
+        onRoleChange={handleRoleChange} 
+      />
+    )}
     </>
   );
 }

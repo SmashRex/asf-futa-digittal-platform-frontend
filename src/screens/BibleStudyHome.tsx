@@ -10,58 +10,69 @@ import {
   Calendar, 
   ArrowRight, 
   Archive, 
-  WifiOff, 
   AlertCircle,
   Bookmark,
   ChevronRight,
   Clock,
-  Layers,
-  Sparkles
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
-import { bibleStudyService } from '../services/bibleStudy/bibleStudy.service';
+import { bibleStudyService, formatStudyDate } from '../services/bibleStudy/bibleStudy.service';
 import { BibleStudyItem } from '../types';
 import { buildBibleStudyRoute } from '../config/bible.config';
 import { ImageWithFallback } from '../components/common/ImageWithFallback';
 
 interface BibleStudyHomeProps {
-  isOfflineSimulated: boolean;
-  onToggleOffline: () => void;
+  isOfflineSimulated?: boolean;
+  onToggleOffline?: () => void;
   bookmarkedStudyIds: string[];
 }
 
 export default function BibleStudyHome({
   isOfflineSimulated,
-  onToggleOffline,
   bookmarkedStudyIds
 }: BibleStudyHomeProps) {
   const navigate = useNavigate();
-  const [isStudyPublished, setIsStudyPublished] = useState(true);
+  const isTodayTuesday = new Date().getDay() === 2;
   const [studies, setStudies] = useState<BibleStudyItem[]>([]);
   const [currentStudy, setCurrentStudy] = useState<BibleStudyItem | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingStudies, setIsLoadingStudies] = useState(true);
+  const [isLoadingCurrent, setIsLoadingCurrent] = useState(true);
+  const [currentStudyError, setCurrentStudyError] = useState<string | null>(null);
+  const [studiesError, setStudiesError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let isMounted = true;
-    setIsLoading(true);
+  const loadData = async () => {
+    setIsLoadingStudies(true);
+    setIsLoadingCurrent(true);
+    setCurrentStudyError(null);
+    setStudiesError(null);
 
-    async function loadBibleStudies() {
-      try {
-        const [allList, latest] = await Promise.all([
-          bibleStudyService.getStudies(),
-          bibleStudyService.getLatestStudy()
-        ]);
-        if (!isMounted) return;
-        setStudies(allList);
-        setCurrentStudy(latest || allList[0] || null);
-      } catch (err) {
-        console.error('Failed to load Bible studies:', err);
-      } finally {
-        if (isMounted) setIsLoading(false);
-      }
+    // 1. Fetch current study (GET /api/bible-study/current)
+    try {
+      const current = await bibleStudyService.getCurrentStudy();
+      setCurrentStudy(current);
+    } catch (err: any) {
+      console.warn('Failed to load current study:', err);
+      setCurrentStudyError(err?.message || 'Unable to check today\'s Bible study schedule.');
+      setCurrentStudy(null);
+    } finally {
+      setIsLoadingCurrent(false);
     }
 
-    loadBibleStudies();
-    return () => { isMounted = false; };
+    // 2. Fetch all published studies (GET /api/bible-study)
+    try {
+      const allStudies = await bibleStudyService.getStudies();
+      setStudies(allStudies);
+    } catch (err: any) {
+      console.warn('Failed to load published studies:', err);
+      setStudiesError(err?.message || 'Unable to load study collection.');
+    } finally {
+      setIsLoadingStudies(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   return (
@@ -134,36 +145,56 @@ export default function BibleStudyHome({
         {/* LEFT COLUMN: TODAY'S STUDY & STUDY COLLECTION (8 COLS) */}
         <div className="lg:col-span-8 space-y-6">
           
-          {/* TODAY'S BIBLE STUDY CARD */}
+          {/* CURRENT / TODAY'S STUDY CARD */}
           <section className="bg-white border border-[var(--color-border)] p-6 rounded-2xl space-y-4 shadow-2xs" id="todays-study-section">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[var(--color-primary)]">
                 <BookOpen className="w-4 h-4 text-[var(--color-primary)]" />
-                <span>Today's Bible Study</span>
+                <span>{(currentStudy || isTodayTuesday) ? "Today's Bible Study" : "Weekly Fellowship Study"}</span>
               </div>
 
-              {currentStudy && isStudyPublished && (
+              {currentStudy && (
                 <span className="text-xs font-bold text-[var(--color-primary)] bg-[var(--color-primary-tint)] px-3 py-1 rounded-full border border-[var(--color-primary)]/20">
                   Lesson {currentStudy.lessonNumber}
                 </span>
               )}
             </div>
 
-            {isLoading ? (
+            {isLoadingCurrent ? (
               <div className="flex flex-col items-center justify-center py-12 space-y-2">
                 <div className="animate-spin rounded-full h-7 w-7 border-2 border-[var(--color-primary)] border-t-transparent" />
-                <span className="text-xs text-[var(--color-text-secondary)]">Loading current session...</span>
+                <span className="text-xs text-[var(--color-text-secondary)]">Checking fellowship schedule...</span>
               </div>
-            ) : !isStudyPublished || !currentStudy ? (
-              /* Empty State: No study published for today */
+            ) : currentStudyError ? (
+              /* Network or Server Error State */
+              <div className="p-8 text-center space-y-3 bg-[var(--color-background)] rounded-xl border border-dashed border-[var(--color-border)]">
+                <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto text-red-600 border border-red-100">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[var(--color-text-primary)]">Unable to Check Study Schedule</h3>
+                  <p className="text-xs text-[var(--color-text-secondary)] mt-1 max-w-sm mx-auto leading-relaxed">
+                    {currentStudyError}
+                  </p>
+                </div>
+                <button
+                  onClick={loadData}
+                  className="px-4 py-2 bg-white border border-[var(--color-border)] text-xs font-bold text-[var(--color-primary)] rounded-lg hover:bg-[var(--color-primary-tint)] transition-all cursor-pointer shadow-2xs inline-flex items-center gap-1.5"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Retry</span>
+                </button>
+              </div>
+            ) : isTodayTuesday && !currentStudy ? (
+              /* Tuesday Empty State: NO_CURRENT_STUDY */
               <div className="p-8 text-center space-y-3 bg-[var(--color-background)] rounded-xl border border-dashed border-[var(--color-border)]" id="study-unpublished-empty-state">
                 <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto text-[var(--color-text-secondary)] border border-[var(--color-border)]">
                   <Clock className="w-6 h-6 text-[var(--color-primary)]" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-[var(--color-text-primary)]">No Study Published for Today</h3>
+                  <h3 className="font-bold text-sm text-[var(--color-text-primary)]">No Bible Study is scheduled for today.</h3>
                   <p className="text-xs text-[var(--color-text-secondary)] mt-1 max-w-sm mx-auto leading-relaxed">
-                    The Bible Study Coordinator has not published an outline for today yet. Kindly check back later or review previous lessons in the Archive.
+                    Today is Tuesday, but no Bible study lesson is scheduled or published for today. You can read published lessons from our curriculum below.
                   </p>
                 </div>
                 <button
@@ -173,62 +204,85 @@ export default function BibleStudyHome({
                   Browse Study Archive
                 </button>
               </div>
-            ) : (
-              /* Published Today's Study Content */
+            ) : !isTodayTuesday && !currentStudy ? (
+              /* Non-Tuesday Info State */
+              <div className="p-6 bg-[var(--color-background)] rounded-xl border border-[var(--color-border)] space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--color-primary-tint)] text-[var(--color-primary)] flex items-center justify-center shrink-0">
+                    <Calendar className="w-5 h-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="font-bold text-sm text-[var(--color-text-primary)]">
+                      Fellowship Bible Study meets every Tuesday
+                    </h3>
+                    <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">
+                      Our weekly chapter Bible Study convenes on Tuesdays at 5:00 PM. Explore the curriculum collection below to prepare ahead or review past lessons.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : currentStudy ? (
+              /* Active Study Details */
               <div className="space-y-4">
                 <div>
                   <div className="flex items-center gap-2 text-xs font-semibold text-[var(--color-text-secondary)]">
-                    <span>Study {currentStudy.lessonNumber}</span>
+                    <span>Lesson {currentStudy.lessonNumber}</span>
                     <span className="w-1 h-1 rounded-full bg-[var(--color-border)]"></span>
                     <span className="flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
-                      {currentStudy.date}
+                      {currentStudy.scheduledDate ? formatStudyDate(currentStudy.scheduledDate) : currentStudy.date}
                     </span>
                   </div>
 
                   <h3 className="text-xl font-serif font-bold text-[var(--color-text-primary)] mt-1">
-                    {currentStudy.title}
+                    {currentStudy.title || currentStudy.topic}
                   </h3>
 
-                  <p className="text-xs font-medium text-[var(--color-text-secondary)] mt-0.5">
-                    Sub-Theme: <span className="text-[var(--color-primary)] font-semibold">{currentStudy.subTheme}</span>
-                  </p>
-                </div>
-
-                {/* Key Scripture Badge */}
-                <div className="bg-[var(--color-background)] p-3.5 rounded-xl border border-[var(--color-border)] flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
-                    <span className="font-bold text-[var(--color-text-primary)]">
-                      Key Scripture: {currentStudy.keyScripture}
-                    </span>
-                  </div>
-                  {bookmarkedStudyIds.includes(currentStudy.id) && (
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-[var(--color-primary)]">
-                      <Bookmark className="w-3.5 h-3.5 fill-current" />
-                      Saved
-                    </span>
+                  {(currentStudy.subTheme || currentStudy.theme) && (
+                    <p className="text-xs font-medium text-[var(--color-text-secondary)] mt-0.5">
+                      Theme: <span className="text-[var(--color-primary)] font-semibold">{currentStudy.subTheme || currentStudy.theme}</span>
+                    </p>
                   )}
                 </div>
 
-                {/* Summary snippet */}
-                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed line-clamp-2 font-sans">
-                  {currentStudy.summary}
-                </p>
+                {/* Key Scripture Badge */}
+                {(currentStudy.textRef || currentStudy.keyScripture) && (
+                  <div className="bg-[var(--color-background)] p-3.5 rounded-xl border border-[var(--color-border)] flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
+                      <span className="font-bold text-[var(--color-text-primary)]">
+                        Scripture Reading: {currentStudy.textRef || currentStudy.keyScripture}
+                      </span>
+                    </div>
+                    {bookmarkedStudyIds.includes(currentStudy.id) && (
+                      <span className="flex items-center gap-1 text-[11px] font-bold text-[var(--color-primary)]">
+                        <Bookmark className="w-3.5 h-3.5 fill-current" />
+                        Saved
+                      </span>
+                    )}
+                  </div>
+                )}
 
-                {/* Prominent Action Button */}
+                {/* Summary or introduction snippet */}
+                {(currentStudy.summary || currentStudy.introduction) && (
+                  <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed line-clamp-2 font-sans">
+                    {currentStudy.summary || currentStudy.introduction}
+                  </p>
+                )}
+
+                {/* Action Button */}
                 <div className="pt-2">
                   <button
                     onClick={() => navigate(buildBibleStudyRoute(currentStudy.id))}
                     className="w-full sm:w-auto flex items-center justify-center gap-2 bg-[var(--color-primary)] text-white px-6 py-3 rounded-xl text-xs font-bold hover:bg-[#5B0617] transition-all min-h-[44px] shadow-xs cursor-pointer active:scale-95"
                     id="go-to-todays-study-btn"
                   >
-                    <span>Go to Today's Study</span>
+                    <span>{isTodayTuesday ? "Go to Today's Study" : "Open Scheduled Lesson"}</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
-            )}
+            ) : null}
           </section>
 
           {/* BIBLE STUDY COLLECTION (Ordered Timeline) */}
@@ -246,57 +300,80 @@ export default function BibleStudyHome({
               </button>
             </div>
 
-            <div className="space-y-2.5">
-              {studies.map((study) => {
-                const isActive = currentStudy ? study.id === currentStudy.id && isStudyPublished : false;
-                return (
-                  <div
-                    key={study.id}
-                    onClick={() => navigate(buildBibleStudyRoute(study.id))}
-                    className={`flex items-start gap-3.5 p-4 rounded-xl border transition-all cursor-pointer bg-white hover:border-[var(--color-primary)] hover:shadow-2xs ${
-                      isActive ? 'border-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/20' : 'border-[var(--color-border)]'
-                    }`}
-                    id={`study-item-${study.id}`}
-                  >
-                    {/* Numbered Circle Badge */}
-                    <div className="w-8 h-8 rounded-full bg-[var(--color-primary-tint)] text-[var(--color-primary)] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
-                      {study.lessonNumber}
-                    </div>
-
-                    <div className="flex-1 min-w-0 space-y-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                        <h4 className="text-sm font-bold font-serif text-[var(--color-text-primary)] truncate">
-                          {study.title}
-                        </h4>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full w-max shrink-0 ${
-                          isActive 
-                            ? 'bg-[var(--color-primary)] text-white' 
-                            : 'bg-[var(--color-background)] text-[var(--color-text-secondary)] border border-[var(--color-border)]'
-                        }`}>
-                          {study.date}
-                        </span>
+            {isLoadingStudies ? (
+              <div className="flex flex-col items-center justify-center py-8 space-y-2">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-[var(--color-primary)] border-t-transparent" />
+                <span className="text-xs text-[var(--color-text-secondary)]">Loading curriculum lessons...</span>
+              </div>
+            ) : studiesError ? (
+              <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-xs text-red-700 text-center">
+                {studiesError}
+              </div>
+            ) : studies.length === 0 ? (
+              <div className="p-8 text-center bg-white border border-[var(--color-border)] rounded-2xl space-y-2">
+                <BookOpen className="w-8 h-8 text-[var(--color-text-secondary)] mx-auto opacity-50" />
+                <h4 className="font-bold text-sm text-[var(--color-text-primary)]">No Published Lessons Yet</h4>
+                <p className="text-xs text-[var(--color-text-secondary)] max-w-sm mx-auto">
+                  Curriculum outlines will appear here once published by the Bible Study unit.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {studies.map((study) => {
+                  const isActive = currentStudy ? study.id === currentStudy.id : false;
+                  return (
+                    <div
+                      key={study.id}
+                      onClick={() => navigate(buildBibleStudyRoute(study.id))}
+                      className={`flex items-start gap-3.5 p-4 rounded-xl border transition-all cursor-pointer bg-white hover:border-[var(--color-primary)] hover:shadow-2xs ${
+                        isActive ? 'border-[var(--color-primary)] ring-1 ring-[var(--color-primary)]/20' : 'border-[var(--color-border)]'
+                      }`}
+                      id={`study-item-${study.id}`}
+                    >
+                      {/* Numbered Circle Badge */}
+                      <div className="w-8 h-8 rounded-full bg-[var(--color-primary-tint)] text-[var(--color-primary)] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        {study.lessonNumber}
                       </div>
 
-                      <p className="text-xs text-[var(--color-text-secondary)] font-sans">
-                        {study.subTheme}
-                      </p>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                          <h4 className="text-sm font-bold font-serif text-[var(--color-text-primary)] truncate">
+                            {study.title || study.topic}
+                          </h4>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full w-max shrink-0 ${
+                            isActive 
+                              ? 'bg-[var(--color-primary)] text-white' 
+                              : 'bg-[var(--color-background)] text-[var(--color-text-secondary)] border border-[var(--color-border)]'
+                          }`}>
+                            {study.scheduledDate ? formatStudyDate(study.scheduledDate) : study.date}
+                          </span>
+                        </div>
 
-                      <p className="text-[11px] font-semibold text-[var(--color-primary)] flex items-center gap-1">
-                        <span>Key Text:</span>
-                        <span>{study.keyScripture}</span>
-                      </p>
+                        {(study.subTheme || study.theme) && (
+                          <p className="text-xs text-[var(--color-text-secondary)] font-sans">
+                            {study.subTheme || study.theme}
+                          </p>
+                        )}
+
+                        {(study.textRef || study.keyScripture) && (
+                          <p className="text-[11px] font-semibold text-[var(--color-primary)] flex items-center gap-1">
+                            <span>Key Text:</span>
+                            <span>{study.textRef || study.keyScripture}</span>
+                          </p>
+                        )}
+                      </div>
+
+                      <ChevronRight className="w-4 h-4 text-[var(--color-text-secondary)] shrink-0 self-center" />
                     </div>
-
-                    <ChevronRight className="w-4 h-4 text-[var(--color-text-secondary)] shrink-0 self-center" />
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
 
         </div>
 
-        {/* RIGHT COLUMN: SERIES CONTEXT & CONTROLS (4 COLS) */}
+        {/* RIGHT COLUMN: SERIES CONTEXT (4 COLS) */}
         <div className="lg:col-span-4 space-y-6">
           
           {/* ABOUT THIS SERIES CARD */}
@@ -326,55 +403,22 @@ export default function BibleStudyHome({
             </div>
           </section>
 
-          {/* SIMULATOR CONTROLS PANEL */}
-          <section className="bg-white border border-[var(--color-border)] p-4 rounded-2xl space-y-3 text-xs shadow-2xs" id="study-simulator-panel">
-            <h4 className="font-bold text-[var(--color-text-primary)] border-b border-[var(--color-border)] pb-2 flex items-center gap-1.5">
-              <Layers className="w-4 h-4 text-[var(--color-primary)]" />
-              <span>State Simulator Controls</span>
+          {/* FELLOWSHIP SCHEDULE INFORMATION */}
+          <section className="bg-[var(--color-background)] border border-[var(--color-border)] p-5 rounded-2xl space-y-3 text-xs" id="fellowship-schedule-card">
+            <h4 className="font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
+              <Clock className="w-4 h-4 text-[var(--color-primary)]" />
+              <span>Weekly Bible Study Meetings</span>
             </h4>
-
-            {/* Offline toggle */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <WifiOff className={`w-4 h-4 ${isOfflineSimulated ? 'text-[var(--color-error)]' : 'text-[var(--color-text-secondary)]'}`} />
-                <div>
-                  <p className="font-semibold text-[var(--color-text-primary)]">Offline Mode</p>
-                  <p className="text-[10px] text-[var(--color-text-secondary)]">Cached outlines</p>
-                </div>
-              </div>
-              <button
-                onClick={onToggleOffline}
-                className={`px-3 py-1 rounded-lg font-bold transition-all border cursor-pointer ${
-                  isOfflineSimulated 
-                    ? 'bg-red-50 text-[var(--color-error)] border-red-200' 
-                    : 'bg-white text-[var(--color-text-secondary)] border-[var(--color-border)]'
-                }`}
-                id="study-offline-toggle-btn"
-              >
-                {isOfflineSimulated ? 'Offline' : 'Online'}
-              </button>
-            </div>
-
-            {/* Publication toggle */}
-            <div className="flex items-center justify-between pt-2 border-t border-[var(--color-border)]">
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-amber-600" />
-                <div>
-                  <p className="font-semibold text-[var(--color-text-primary)]">Publication State</p>
-                  <p className="text-[10px] text-[var(--color-text-secondary)]">Simulate empty state</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setIsStudyPublished(!isStudyPublished)}
-                className={`px-3 py-1 rounded-lg font-bold transition-all border cursor-pointer ${
-                  !isStudyPublished
-                    ? 'bg-amber-50 text-amber-800 border-amber-200' 
-                    : 'bg-white text-[var(--color-text-secondary)] border-[var(--color-border)]'
-                }`}
-                id="study-published-toggle-btn"
-              >
-                {isStudyPublished ? 'Published' : 'Unpublished'}
-              </button>
+            <div className="space-y-2 text-[var(--color-text-secondary)] leading-relaxed">
+              <p>
+                <strong className="text-[var(--color-text-primary)]">When:</strong> Every Tuesday at 5:00 PM (Prompt)
+              </p>
+              <p>
+                <strong className="text-[var(--color-text-primary)]">Where:</strong> Fellowship Auditorium & designated campus centers
+              </p>
+              <p className="text-[11px] pt-1">
+                Bring your Holy Bible, writing materials, and an open heart to be transformed by God's Word.
+              </p>
             </div>
           </section>
 

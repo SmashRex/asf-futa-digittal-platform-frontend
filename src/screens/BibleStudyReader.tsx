@@ -20,7 +20,7 @@ import {
   User,
   Compass
 } from 'lucide-react';
-import { bibleStudyService } from '../services/bibleStudy/bibleStudy.service';
+import { bibleStudyService, formatStudyDate } from '../services/bibleStudy/bibleStudy.service';
 import { BibleStudyItem } from '../types';
 import BibleReferenceOverlay from '../components/BibleReferenceOverlay';
 import BibleReferenceLink from '../components/bible/BibleReferenceLink';
@@ -291,18 +291,20 @@ export default function BibleStudyReader({
                 Lesson {study.lessonNumber}
               </span>
               <div className="study-reader-theme font-medium">
-                {study.annualTheme || "The Reign of God: Marriage And Christian Lifestyle"}
+                {study.annualTheme || study.theme || "The Reign of God: Marriage And Christian Lifestyle"}
               </div>
-              <div className="study-reader-subtheme font-medium">
-                {study.subTheme}
-              </div>
+              {(study.subTheme || (study.theme && study.annualTheme && study.theme !== study.annualTheme)) && (
+                <div className="study-reader-subtheme font-medium">
+                  {study.subTheme || study.theme}
+                </div>
+              )}
               <div className="study-reader-date">
-                {study.date}
+                {study.scheduledDate ? formatStudyDate(study.scheduledDate) : study.date}
               </div>
 
               {/* Study Title Topic */}
               <h1 className="study-reader-title" id="study-topic-headline">
-                {study.title}
+                {study.title || study.topic}
               </h1>
 
               {/* Author / Teacher Credits */}
@@ -341,22 +343,35 @@ export default function BibleStudyReader({
                   />
                 ))}
               </div>
+
+              {/* Scripture text content when provided by backend */}
+              {study.textContent && (
+                <div className="mt-3 p-3.5 bg-white rounded-lg border border-[var(--color-border)] text-sm font-serif leading-relaxed text-[var(--color-text-primary)] whitespace-pre-line shadow-2xs">
+                  {study.textContent}
+                </div>
+              )}
             </div>
 
             {/* AIMS SECTION */}
-            {study.aims && study.aims.length > 0 && (
+            {((study.aims && study.aims.length > 0) || Boolean(study.aim)) && (
               <section className="mb-8" id="study-aims-section">
                 <h2 className="study-section-heading">
                   <Flag className="w-5 h-5 text-[#fabb53] fill-current" />
-                  <span>Aims</span>
+                  <span>Aim{study.aims && study.aims.length > 1 ? 's' : ''}</span>
                 </h2>
-                <ol className="study-aims-list">
-                  {study.aims.map((aim, idx) => (
-                    <li key={idx}>
-                      {aim}
-                    </li>
-                  ))}
-                </ol>
+                {study.aims && study.aims.length > 0 ? (
+                  <ol className="study-aims-list">
+                    {study.aims.map((aim, idx) => (
+                      <li key={idx}>
+                        {aim}
+                      </li>
+                    ))}
+                  </ol>
+                ) : study.aim ? (
+                  <p className="font-serif text-lg leading-relaxed text-[var(--color-text-primary)]">
+                    {study.aim}
+                  </p>
+                ) : null}
               </section>
             )}
 
@@ -514,13 +529,17 @@ export default function BibleStudyReader({
                 </h2>
 
                 <div className="study-prayer-card">
-                  {study.prayerText ? (
+                  {study.prayerText && (
                     <p className="font-serif italic text-lg text-[var(--color-text-primary)] leading-relaxed">
                       {study.prayerText}
                     </p>
-                  ) : (
-                    <div className="space-y-3 text-left">
-                      {(study.prayerPoints || []).map((p, idx) => (
+                  )}
+                  {Array.isArray(study.prayerPoints) && study.prayerPoints.length > 0 && (
+                    <div className={`space-y-2.5 text-left ${study.prayerText ? 'mt-4 pt-3 border-t border-[var(--color-border)]' : ''}`}>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-primary)] font-sans">
+                        Prayer Points
+                      </h4>
+                      {study.prayerPoints.map((p, idx) => (
                         <p key={idx} className="font-serif italic text-base text-[var(--color-text-primary)] leading-relaxed flex items-start gap-2">
                           <span className="text-[var(--color-primary)] font-bold">•</span>
                           <span>{p}</span>

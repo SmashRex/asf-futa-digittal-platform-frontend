@@ -119,7 +119,7 @@ export default function BibleHome({
           <div className="flex items-center gap-2.5 text-[#52525B]">
             <WifiOff className="w-4 h-4 text-amber-700 shrink-0" />
             <div>
-              <p className="font-bold text-[#18181B]">Simulated Offline Mode</p>
+              <p className="font-bold text-[#18181B]">Offline Mode</p>
               <p className="text-[10px] text-[#52525B]">Showing cached scriptures and pre-bundled Bible chapters</p>
             </div>
           </div>

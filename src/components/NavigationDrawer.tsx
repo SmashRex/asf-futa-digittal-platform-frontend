@@ -165,10 +165,10 @@ export default function NavigationDrawer({
 
             <div className="min-w-0 flex-1">
               <h3 className="font-bold text-sm leading-snug truncate text-white group-hover:text-white">
-                {currentUser ? currentUser.name : 'Brethren Pilgrim'}
+                {currentUser ? currentUser.name : 'Fellowship Member'}
               </h3>
               <div className="flex items-center gap-1.5 mt-0.5">
-                <span className="text-white/90 text-[10px] font-bold tracking-wider uppercase inline-flex items-center gap-1 bg-white/15 px-2 py-0.5 rounded-md">
+                <span className="text-white/90 text-[10px] font-bold tracking-wider uppercase inline-flex items-center gap-1 bg-white/15 px-2 py-0.5 rounded-md whitespace-nowrap">
                   {hasAdminAccess && <ShieldCheck className="w-3 h-3 text-amber-300 shrink-0" />}
                   <span className="truncate">{currentUser?.roles?.join(', ') || currentUser?.role || 'Member'}</span>
                 </span>

@@ -1,8 +1,23 @@
 import React from 'react';
 import { Calendar, Clock, MapPin } from 'lucide-react';
-import { weeklyGatherings, upcomingEvents } from '../data/mockData';
+import { weeklyGatherings, upcomingEvents, WeeklyGathering, Event } from '../data/mockData';
 
-export default function ScheduleSection() {
+export interface ScheduleSectionProps {
+  gatherings?: WeeklyGathering[];
+  events?: Event[];
+  thisWeekBackgroundImage?: string;
+  thisWeekImageAlt?: string;
+}
+
+export default function ScheduleSection({
+  gatherings = weeklyGatherings,
+  events = upcomingEvents,
+  thisWeekBackgroundImage,
+  thisWeekImageAlt = 'ASF Fellowship Gathering'
+}: ScheduleSectionProps = {}) {
+  const firstEventWithImage = events.find(e => e.imageUrl)?.imageUrl;
+  const activeBackgroundImage = thisWeekBackgroundImage || firstEventWithImage;
+
   return (
     <section data-section-id="schedule" className="py-24 bg-[#FDFBF9] border-t border-stone-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -20,7 +35,7 @@ export default function ScheduleSection() {
             </div>
 
             <div className="flex flex-col gap-6">
-              {weeklyGatherings.map((gathering) => (
+              {gatherings.map((gathering) => (
                 <div key={gathering.id} className="bg-white p-6 rounded-2xl shadow-sm border border-stone-100 flex flex-col sm:flex-row gap-6 hover:shadow-md transition-shadow">
                   <div className="flex-shrink-0 flex sm:flex-col items-center sm:items-start gap-3 sm:w-32">
                     <span className="font-label-caps text-xs font-bold text-[#5B0617] uppercase tracking-wider">{gathering.day}</span>
@@ -49,43 +64,60 @@ export default function ScheduleSection() {
 
           {/* This Week at ASF (Dynamic/Upcoming) */}
           <div className="lg:col-span-5">
-            <div className="bg-[#5B0617] rounded-3xl p-8 sm:p-10 text-white shadow-xl sticky top-24">
-              <h3 className="font-display-reading text-2xl mb-8">This Week at ASF</h3>
-              
-              <div className="flex flex-col gap-8">
-                {/* Example of dynamic rendering. If there's an event this week, show it. Otherwise show next gathering. */}
-                {upcomingEvents.length > 0 ? (
-                  <div className="flex flex-col gap-4">
-                    <span className="inline-flex self-start px-2.5 py-1 bg-white/20 text-white rounded-full font-label-caps text-[10px] tracking-wider uppercase backdrop-blur-sm">
-                      Up Next
-                    </span>
-                    <div>
-                      <h4 className="font-headline-md text-xl font-bold mb-2">{upcomingEvents[0].title}</h4>
-                      <p className="text-white/80 font-body-md text-sm mb-4 leading-relaxed line-clamp-2">
-                        {upcomingEvents[0].description}
-                      </p>
-                      <div className="space-y-2 text-sm text-white/90 font-medium">
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4 opacity-70" />
-                          {upcomingEvents[0].date} • {upcomingEvents[0].time}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="w-4 h-4 opacity-70" />
-                          {upcomingEvents[0].venue}
+            <div className="relative rounded-3xl p-8 sm:p-10 text-white shadow-xl sticky top-24 overflow-hidden bg-[#5B0617]">
+              {/* Optional Background Image Layer */}
+              {activeBackgroundImage ? (
+                <div className="absolute inset-0 z-0 pointer-events-none">
+                  <img
+                    src={activeBackgroundImage}
+                    alt={thisWeekImageAlt}
+                    className="w-full h-full object-cover object-center"
+                  />
+                  {/* Adaptive contrast overlay ensuring WCAG AA legibility for text/icons */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#3D040F]/95 via-[#5B0617]/90 to-[#5B0617]/80 backdrop-blur-[1px]" />
+                </div>
+              ) : (
+                /* Ambient subtle tone layer when no image is configured */
+                <div className="absolute inset-0 bg-gradient-to-br from-[#5B0617] via-[#5B0617] to-[#430411] z-0 pointer-events-none" />
+              )}
+
+              <div className="relative z-10">
+                <h3 className="font-display-reading text-2xl mb-8">This Week at ASF</h3>
+                
+                <div className="flex flex-col gap-8">
+                  {events.length > 0 ? (
+                    <div className="flex flex-col gap-4">
+                      <span className="inline-flex self-start px-2.5 py-1 bg-white/20 text-white rounded-full font-label-caps text-[10px] tracking-wider uppercase backdrop-blur-sm">
+                        Up Next
+                      </span>
+                      <div>
+                        <h4 className="font-headline-md text-xl font-bold mb-2">{events[0].title}</h4>
+                        <p className="text-white/80 font-body-md text-sm mb-4 leading-relaxed line-clamp-2">
+                          {events[0].description}
+                        </p>
+                        <div className="space-y-2 text-sm text-white/90 font-medium">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="w-4 h-4 opacity-70" />
+                            {events[0].date} • {events[0].time}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-4 h-4 opacity-70" />
+                            {events[0].venue}
+                          </div>
                         </div>
                       </div>
                     </div>
+                  ) : (
+                    <div className="text-white/70 font-body-md italic">
+                      Regular schedule continues this week.
+                    </div>
+                  )}
+                  
+                  <div className="pt-8 border-t border-white/20">
+                    <a href="#visit" className="inline-flex items-center gap-2 text-white font-body-md font-semibold hover:text-white/80 transition-colors">
+                      Join us this week <span aria-hidden="true">→</span>
+                    </a>
                   </div>
-                ) : (
-                  <div className="text-white/70 font-body-md italic">
-                    Regular schedule continues this week.
-                  </div>
-                )}
-                
-                <div className="pt-8 border-t border-white/20">
-                  <a href="#visit" className="inline-flex items-center gap-2 text-white font-body-md font-semibold hover:text-white/80 transition-colors">
-                    Join us this week <span aria-hidden="true">→</span>
-                  </a>
                 </div>
               </div>
             </div>

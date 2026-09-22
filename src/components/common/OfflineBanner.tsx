@@ -11,7 +11,7 @@ interface OfflineBannerProps {
 }
 
 export const OfflineBanner: React.FC<OfflineBannerProps> = ({
-  message = 'Simulated Offline Mode: Showing cached/pre-bundled content stored on device.'
+  message = 'Offline Mode: Showing cached/pre-bundled content stored on device.'
 }) => {
   return (
     <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2.5 text-xs text-amber-800 flex items-center justify-center gap-2 text-center font-medium">

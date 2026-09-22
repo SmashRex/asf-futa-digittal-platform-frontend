@@ -32,7 +32,10 @@ describe('Auth Service', () => {
       email: 'student@futa.edu.ng',
       password: 'StrongPassword123',
       department: 'Computer Science',
+      departmentId: 'computer-science',
+      gender: 'Male',
       level: '400 Level',
+      academicLevel: '400 Level',
       programDurationYears: 5,
       subgroup: 'Technical Team',
     });
@@ -41,6 +44,7 @@ describe('Auth Service', () => {
     expect(res.user.email).toBe('student@futa.edu.ng');
     expect(res.user.name).toBe('John Doe');
     expect(res.user.department).toBe('Computer Science');
+    expect(res.user.gender).toBe('Male');
     expect(res.user.programDurationYears).toBe(5);
     expect(authService.getToken()).toBe(res.token);
   });
@@ -51,7 +55,10 @@ describe('Auth Service', () => {
       email: 'alumni@futa.edu.ng',
       password: 'StrongPassword123',
       department: 'Architecture',
+      departmentId: 'architecture',
+      gender: 'Male',
       level: 'Alumni',
+      academicLevel: 'Alumni',
     });
 
     expect(typeof res.user.programDurationYears).toBe('number');
@@ -64,7 +71,10 @@ describe('Auth Service', () => {
       email: 'pg@futa.edu.ng',
       password: 'StrongPassword123',
       department: 'Physics',
+      departmentId: 'physics',
+      gender: 'Female',
       level: 'Postgraduate',
+      academicLevel: 'Postgraduate',
     });
 
     expect(typeof res.user.programDurationYears).toBe('number');
@@ -87,8 +97,12 @@ describe('Auth Service', () => {
       authService.register({
         name: 'Invalid Year',
         email: 'invalid@futa.edu.ng',
+        password: 'StrongPassword123',
         department: 'Science',
+        departmentId: 'science',
+        gender: 'Male',
         level: '200 Level',
+        academicLevel: '200 Level',
         programDurationYears: 3 as any,
       })
     ).rejects.toThrow('Program duration must be either 4 or 5 years');
@@ -321,6 +335,8 @@ describe('Auth Service', () => {
         email: 'newuser@futa.edu.ng',
         password: 'password1234',
         department: 'Computer Science',
+        departmentId: 'computer-science',
+        gender: 'Male',
         level: '300 Level',
         academicLevel: '300 Level',
         programDurationYears: 5,

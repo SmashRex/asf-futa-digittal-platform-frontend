@@ -20,7 +20,9 @@ import {
   Globe2,
   ChevronDown,
   Hash,
-  X
+  X,
+  Highlighter,
+  Copy
 } from 'lucide-react';
 import { bibleService } from '../services/bible/bible.service';
 import { BibleBookDetail, BibleChapterDetail, BibleVerseDetail, BibleVersion } from '../types';
@@ -53,6 +55,8 @@ export default function BibleReaderPage({
   const [showVersePicker, setShowVersePicker] = useState(false);
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [highlightedVerses, setHighlightedVerses] = useState<number[]>([]);
+  const [activeVerseForAction, setActiveVerseForAction] = useState<BibleVerseDetail | null>(null);
 
   // Loaded data state
   const [book, setBook] = useState<BibleBookDetail | null>(null);
@@ -290,11 +294,54 @@ export default function BibleReaderPage({
     return effectiveVersionId.toUpperCase();
   };
 
+  // Sync saved highlights for this chapter
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`asf_bible_hl_${canonicalBookId}_${currentChapterNum}`);
+      if (stored) {
+        setHighlightedVerses(JSON.parse(stored));
+      } else {
+        setHighlightedVerses([]);
+      }
+    } catch {
+      setHighlightedVerses([]);
+    }
+  }, [canonicalBookId, currentChapterNum]);
+
+  const handleVerseClick = (verse: BibleVerseDetail) => {
+    setActiveVerseForAction(verse);
+  };
+
+  const toggleHighlightVerse = (verseNum: number) => {
+    setHighlightedVerses((prev) => {
+      const isAlready = prev.includes(verseNum);
+      const next = isAlready ? prev.filter(n => n !== verseNum) : [...prev, verseNum].sort((a, b) => a - b);
+      try {
+        localStorage.setItem(`asf_bible_hl_${canonicalBookId}_${currentChapterNum}`, JSON.stringify(next));
+      } catch (e) {
+        console.warn('Could not save highlights', e);
+      }
+      setToastMessage(isAlready ? `Verse ${verseNum} highlight removed` : `Verse ${verseNum} highlighted`);
+      setTimeout(() => setToastMessage(''), 2500);
+      return next;
+    });
+  };
+
+  const handleCopyVerse = (verse: BibleVerseDetail) => {
+    const bookTitle = book?.name || catalogBook.name;
+    const textToCopy = `${bookTitle} ${chapter?.number || currentChapterNum}:${verse.number} (${effectiveVersionId.toUpperCase()}) - ${verse.text}`;
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(textToCopy);
+    }
+    setToastMessage(`Copied verse ${verse.number} to clipboard`);
+    setTimeout(() => setToastMessage(''), 2500);
+  };
+
   return (
-    <div className={`flex-1 flex flex-col min-h-screen transition-colors select-none ${getContainerBg()}`} id="bible-reader-page">
+    <div className={`flex-1 flex flex-col min-h-screen transition-colors ${getContainerBg()}`} id="bible-reader-page">
       
       {/* Dynamic Navigation Header */}
-      <div className={`sticky top-0 z-40 border-b backdrop-blur-md px-3 sm:px-4 py-2.5 flex items-center justify-between transition-colors ${getHeaderClasses()}`} id="bible-reader-top-controls">
+      <div className={`sticky top-0 z-40 border-b backdrop-blur-md px-3 sm:px-4 py-2.5 flex items-center justify-between transition-colors select-none ${getHeaderClasses()}`} id="bible-reader-top-controls">
         <button
           onClick={() => navigate('/bible')}
           className="flex items-center gap-1.5 text-xs font-semibold hover:text-[#7A1F2B] transition-colors py-1 cursor-pointer"
@@ -363,7 +410,9 @@ export default function BibleReaderPage({
               ) : (
                 <>
                   <option value="kjv">KJV</option>
-                  <option value="web">WEB</option>
+                  <option value="niv">NIV</option>
+                  <option value="bsb">BSB</option>
+                  <option value="asv">ASV</option>
                 </>
               )}
             </select>
@@ -487,7 +536,9 @@ export default function BibleReaderPage({
               ) : (
                 <>
                   <option value="kjv">King James Version (KJV)</option>
-                  <option value="web">World English Bible (WEB)</option>
+                  <option value="niv">New International Version (NIV)</option>
+                  <option value="bsb">Berean Standard Bible (BSB)</option>
+                  <option value="asv">American Standard Version (ASV)</option>
                 </>
               )}
             </select>
@@ -602,8 +653,10 @@ export default function BibleReaderPage({
             <BibleVerseList
               verses={chapter.verses}
               targetVerse={targetVerseNum}
+              highlightedVerses={highlightedVerses}
               fontSize={fontSize}
               theme={theme}
+              onVerseClick={handleVerseClick}
             />
 
             {/* Compact Boundary-Safe Chapter Navigation Controls */}
@@ -649,6 +702,57 @@ export default function BibleReaderPage({
           </div>
         )}
       </div>
+
+      {/* Verse Action Bar (Highlight & Copy) */}
+      {activeVerseForAction && (
+        <div 
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-white dark:bg-zinc-900 border border-[#E4E4E7] dark:border-zinc-700 shadow-xl rounded-2xl px-4 py-3 max-w-md w-[92%] z-50 flex items-center justify-between gap-3 text-xs"
+          id="verse-action-bar"
+        >
+          <div className="flex flex-col min-w-0 pr-2">
+            <span className="font-bold text-[#7A1F2B] dark:text-amber-400 font-serif truncate">
+              {book?.name || catalogBook.name} {chapter?.number || currentChapterNum}:{activeVerseForAction.number}
+            </span>
+            <span className="text-[11px] text-[#52525B] dark:text-zinc-400 truncate max-w-[180px] sm:max-w-xs">
+              {activeVerseForAction.text}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={() => toggleHighlightVerse(activeVerseForAction.number)}
+              className={`px-2.5 py-1.5 rounded-lg border transition-colors flex items-center gap-1 cursor-pointer ${
+                highlightedVerses.includes(activeVerseForAction.number)
+                  ? 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-900/40 dark:text-amber-200 dark:border-amber-700'
+                  : 'bg-stone-50 dark:bg-zinc-800 text-stone-700 dark:text-zinc-200 border-stone-200 dark:border-zinc-700 hover:border-[#7A1F2B]'
+              }`}
+              title={highlightedVerses.includes(activeVerseForAction.number) ? "Remove Highlight" : "Highlight Verse"}
+            >
+              <Highlighter className="w-3.5 h-3.5" />
+              <span className="font-medium text-[11px]">
+                {highlightedVerses.includes(activeVerseForAction.number) ? 'Highlighted' : 'Highlight'}
+              </span>
+            </button>
+
+            <button
+              onClick={() => handleCopyVerse(activeVerseForAction)}
+              className="p-1.5 rounded-lg border border-stone-200 dark:border-zinc-700 bg-stone-50 dark:bg-zinc-800 text-stone-700 dark:text-zinc-200 hover:border-[#7A1F2B] transition-colors flex items-center gap-1 cursor-pointer"
+              title="Copy Verse Text"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span className="font-medium text-[11px] hidden xs:inline">Copy</span>
+            </button>
+
+            <button
+              onClick={() => setActiveVerseForAction(null)}
+              className="p-1 rounded-lg text-stone-400 hover:text-stone-700 dark:hover:text-zinc-200 cursor-pointer"
+              title="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Toast Popup Notification */}
       {toastMessage && (

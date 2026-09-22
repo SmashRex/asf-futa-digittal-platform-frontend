@@ -17,8 +17,7 @@ import {
   BookMarked,
   Clock,
   MapPin,
-  ChevronRight,
-  Shield
+  ChevronRight
 } from 'lucide-react';
 import { UserProfile, BibleStudyItem, Announcement } from '../types';
 import { EventItem } from '../types/event';
@@ -83,50 +82,55 @@ export default function Home({ currentUser }: HomeProps) {
     return 'Good evening';
   };
 
+  // Greeting name logic: Bro [First Name] | Sis [First Name] | [First Name] | Fellowship Member
+  const getGreetingName = () => {
+    if (!currentUser?.name) {
+      return 'Fellowship Member';
+    }
+    const firstName = currentUser.name.trim().split(/\s+/)[0];
+    if (currentUser.gender === 'Male') {
+      return `Bro ${firstName}`;
+    }
+    if (currentUser.gender === 'Female') {
+      return `Sis ${firstName}`;
+    }
+    return firstName;
+  };
+
   return (
     <div className="flex-1 p-4 sm:p-6 max-w-2xl mx-auto w-full space-y-6 select-none" id="member-home-screen">
       
       {/* Warm Personal Greeting & Profile Context */}
-      <section className="bg-white rounded-2xl border border-[#E4E4E7] p-5 shadow-sm space-y-2" id="home-greeting-panel">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold text-[var(--color-primary)] uppercase tracking-wider">
-            Anglican Students' Fellowship • FUTA Chapter
-          </span>
-          {currentUser?.role && currentUser.role !== 'Member' && (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#5B0617]/10 text-[#5B0617] border border-[#5B0617]/20 flex items-center gap-1">
-              <Shield className="w-3 h-3" />
-              <span>{currentUser.role}</span>
-            </span>
-          )}
-        </div>
-
-        <div className="pt-1">
+      <section className="bg-white rounded-2xl border border-[#E4E4E7] p-5 shadow-sm space-y-3" id="home-greeting-panel">
+        <div>
           <p className="text-xs text-[var(--color-text-secondary)] font-medium">
             {getGreeting()},
           </p>
-          <h1 className="text-xl sm:text-2xl font-serif font-bold text-[var(--color-text-primary)] mt-0.5">
-            {currentUser?.name || 'Fellowship Pilgrim'}
+          <h1 className="text-xl sm:text-2xl font-serif font-bold text-[var(--color-text-primary)] mt-0.5" id="home-greeting-heading">
+            {getGreetingName()}
           </h1>
         </div>
 
         {/* Member fellowship context badges */}
-        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-[var(--color-text-secondary)]">
-          {currentUser?.department && (
-            <span className="px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#E4E4E7] font-medium text-[var(--color-text-primary)]">
-              {currentUser.department}
-            </span>
-          )}
-          {currentUser?.level && (
-            <span className="px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#E4E4E7] font-medium text-[var(--color-text-primary)]">
-              {currentUser.level}
-            </span>
-          )}
-          {currentUser?.subgroup && (
-            <span className="px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#E4E4E7] font-medium text-[#5B0617]">
-              {currentUser.subgroup}
-            </span>
-          )}
-        </div>
+        {(currentUser?.department || currentUser?.level || currentUser?.subgroup) && (
+          <div className="flex flex-wrap items-center gap-2 pt-0.5 text-xs text-[var(--color-text-secondary)]">
+            {currentUser?.department && (
+              <span className="px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#E4E4E7] font-medium text-[var(--color-text-primary)]">
+                {currentUser.department}
+              </span>
+            )}
+            {currentUser?.level && (
+              <span className="px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#E4E4E7] font-medium text-[var(--color-text-primary)]">
+                {currentUser.level}
+              </span>
+            )}
+            {currentUser?.subgroup && (
+              <span className="px-2.5 py-1 rounded-lg bg-[#FAF8F5] border border-[#E4E4E7] font-medium text-[#5B0617]">
+                {currentUser.subgroup}
+              </span>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Active Study Outline & Memory Verse Card */}

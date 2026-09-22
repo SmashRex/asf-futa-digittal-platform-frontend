@@ -9,7 +9,9 @@ export interface UserProfile {
   id: string;
   name: string;
   email: string;
-  department: string;
+  departmentId?: string; // Authoritative department identifier e.g. "computer-science"
+  department?: string | null; // Display department name (nullable per backend contract)
+  gender?: 'Male' | 'Female' | null; // Authoritative member gender
   academicLevel: string; // Authoritative backend contract property e.g. "400 Level"
   level?: string; // UI alias for academicLevel
   phoneNumber?: string;

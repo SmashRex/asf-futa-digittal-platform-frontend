@@ -4,21 +4,25 @@
  */
 
 import React, { useState } from 'react';
+import { BRAND_CONFIG } from '../config/brand.config';
 
 interface LogoProps {
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   theme?: 'dark' | 'maroon' | 'white' | 'monochrome';
-  variant?: 'symbol' | 'full' | 'compact';
+  variant?: 'symbol' | 'full' | 'compact' | 'futa';
   customLogoUrl?: string;
+  className?: string;
 }
 
 export default function Logo({ 
   size = 'md', 
   theme = 'maroon', 
   variant = 'symbol',
-  customLogoUrl 
+  customLogoUrl,
+  className = ''
 }: LogoProps) {
   const [imageError, setImageError] = useState(false);
+  const effectiveLogoUrl = customLogoUrl || BRAND_CONFIG.officialLogoUrl;
 
   const getDimensions = () => {
     switch (size) {
@@ -130,10 +134,10 @@ export default function Logo({
   );
 
   const renderLogoMedia = () => {
-    if (customLogoUrl && !imageError) {
+    if (effectiveLogoUrl && !imageError) {
       return (
         <img
-          src={customLogoUrl}
+          src={effectiveLogoUrl}
           alt="Anglican Students' Fellowship Logo"
           onError={() => setImageError(true)}
           className="w-full h-full object-contain"
@@ -145,14 +149,29 @@ export default function Logo({
 
   if (variant === 'symbol') {
     return (
-      <div className={`flex items-center justify-center ${getDimensions()} select-none shrink-0`} id="asf-logo-container">
+      <div className={`flex items-center justify-center ${getDimensions()} select-none shrink-0 ${className}`} id="asf-logo-container">
         {renderLogoMedia()}
       </div>
     );
   }
 
+  if (variant === 'futa') {
+    return (
+      <div className={`inline-flex items-center gap-2.5 select-none ${className}`} id="asf-branded-logo-futa">
+        <div className={`flex items-center justify-center ${getDimensions()} shrink-0`}>
+          {renderLogoMedia()}
+        </div>
+        <span className={`font-label-caps font-bold tracking-wider uppercase ${getTextColorClass()} ${
+          size === 'xs' ? 'text-xs' : size === 'sm' ? 'text-base sm:text-lg' : 'text-lg sm:text-xl'
+        }`}>
+          FUTA
+        </span>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center gap-3 select-none" id="asf-branded-logo">
+    <div className={`flex items-center gap-3 select-none ${className}`} id="asf-branded-logo">
       <div className={`flex items-center justify-center ${getDimensions()} shrink-0`}>
         {renderLogoMedia()}
       </div>

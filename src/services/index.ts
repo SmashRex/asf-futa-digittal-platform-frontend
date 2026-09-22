@@ -17,3 +17,4 @@ export * from './image/imageCache.service';
 export * from './academicSessions/academicSessions.service';
 export * from './members/members.service';
 export * from './media/media.service';
+export * from './departments/department.service';

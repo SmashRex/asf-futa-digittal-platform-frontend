@@ -65,7 +65,8 @@ export const API_CONFIG = {
     },
     content: {
       cms: '/content',
-    }
+    },
+    departments: '/departments',
   }
 };
 

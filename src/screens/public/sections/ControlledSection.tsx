@@ -57,7 +57,7 @@ export const ControlledSection: React.FC<ControlledSectionProps> = ({ section })
             </blockquote>
             {subtitle && (
               <p className={`text-base sm:text-lg font-sans font-semibold tracking-wide uppercase text-sm ${isBrand ? 'text-amber-300' : 'text-[#5B0617]'}`}>
-                — {subtitle}
+                {subtitle}
               </p>
             )}
           </div>
@@ -126,7 +126,7 @@ export const ControlledSection: React.FC<ControlledSectionProps> = ({ section })
                 "{description || title}"
               </h3>
               <p className="text-[#5B0617] font-bold text-base tracking-wide">
-                — {subtitle || title}
+                {subtitle || title}
               </p>
               {showCta && (
                 <div className="mt-6">

@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Logo from '../components/Logo';
-import { User, Mail, Phone, ArrowLeft, ChevronRight, HelpCircle, GraduationCap, Lock, Eye, EyeOff } from 'lucide-react';
+import { User, Mail, Phone, ArrowLeft, ChevronRight, HelpCircle, GraduationCap, Lock, RefreshCw } from 'lucide-react';
 import Input from '../components/common/Input';
 import { authService } from '../services/auth/auth.service';
 import { UserProfile } from '../types';
+import { departmentService, Department } from '../services/departments/department.service';
 
 interface RegisterProps {
   onLoginSuccess: (user: UserProfile) => void;
@@ -22,14 +23,60 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [department, setDepartment] = useState('');
+  const [departmentId, setDepartmentId] = useState('');
+  const [gender, setGender] = useState<'Male' | 'Female' | ''>('');
   const [level, setLevel] = useState('100 Level');
   const [programDurationYears, setProgramDurationYears] = useState<4 | 5>(4);
 
   // Optional Fellowship Profile Fields
   const [phoneNumber, setPhoneNumber] = useState('');
   const [subgroup, setSubgroup] = useState('');
+
+  // Canonical departments dynamically fetched from GET /api/departments
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [isDepartmentsLoading, setIsDepartmentsLoading] = useState(true);
+  const [departmentsError, setDepartmentsError] = useState<string | null>(null);
+
+  // Fetch canonical departments from GET /api/departments on mount
+  const fetchDepartments = async () => {
+    setIsDepartmentsLoading(true);
+    setDepartmentsError(null);
+    try {
+      const data = await departmentService.getDepartments();
+      setDepartments(data);
+    } catch (err) {
+      console.error('Failed to load canonical departments:', err);
+      setDepartmentsError('Unable to load departments list.');
+    } finally {
+      setIsDepartmentsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  // Group departments by school if school metadata is present for clean display
+  const groupedDepartments = useMemo(() => {
+    const hasSchools = departments.some(d => Boolean(d.school));
+    if (!hasSchools) return null;
+
+    const groups: Record<string, Department[]> = {};
+    const ungrouped: Department[] = [];
+
+    departments.forEach((dept) => {
+      if (dept.school && dept.id !== 'other') {
+        if (!groups[dept.school]) {
+          groups[dept.school] = [];
+        }
+        groups[dept.school].push(dept);
+      } else {
+        ungrouped.push(dept);
+      }
+    });
+
+    return { groups, ungrouped };
+  }, [departments]);
 
   // UI State
   const [error, setError] = useState('');
@@ -43,7 +90,6 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
     // Field Validation
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
-    const trimmedDept = department.trim();
 
     if (!trimmedName) {
       setError('Please enter your full name.');
@@ -60,6 +106,11 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
       return;
     }
 
+    if (!gender) {
+      setError('Please select your gender.');
+      return;
+    }
+
     if (!password) {
       setError('Please enter a password.');
       return;
@@ -70,8 +121,8 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
       return;
     }
 
-    if (!trimmedDept) {
-      setError('Please enter your academic department.');
+    if (!departmentId) {
+      setError('Please select your academic department.');
       return;
     }
 
@@ -86,7 +137,8 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
         name: trimmedName,
         email: trimmedEmail,
         password: password,
-        department: trimmedDept,
+        departmentId: departmentId,
+        gender: gender,
         level,
         academicLevel: level,
         programDurationYears: effectiveDuration,
@@ -183,49 +235,108 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
               onClear={() => setEmail('')}
             />
 
+            {/* Gender Selection (Required) */}
+            <div className="flex flex-col align-start text-left">
+              <label className="input-label mb-1.5 text-sm font-medium text-[var(--color-text-primary)]" htmlFor="register-gender-input">
+                Gender *
+              </label>
+              <select
+                id="register-gender-input"
+                value={gender}
+                onChange={(e) => setGender(e.target.value as 'Male' | 'Female')}
+                className="input-box"
+                disabled={isLoading}
+              >
+                <option value="">Select your gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+              </select>
+            </div>
+
             {/* Password */}
             <div className="space-y-1">
-              <div className="relative">
-                <Input
-                  id="register-password-input"
-                  label="Password *"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  placeholder="Enter a secure password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  leadingIcon={Lock}
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-[38px] text-[var(--color-text-light)] hover:text-[var(--color-text-primary)] transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  id="register-toggle-password-btn"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
+              <Input
+                id="register-password-input"
+                label="Password *"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Enter a secure password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                leadingIcon={Lock}
+                disabled={isLoading}
+              />
               <p className="text-[11px] text-[var(--color-text-secondary)] pl-0.5" id="register-password-hint">
-                Password must be at least 4 characters long.
+                Password must be at least 8 characters long.
               </p>
             </div>
 
             {/* Department & Level */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                id="register-dept-input"
-                label="Department *"
-                type="text"
-                autoComplete="organization"
-                placeholder="e.g. Computer Science"
-                value={department}
-                onChange={(e) => setDepartment(e.target.value)}
-                disabled={isLoading}
-                showClearButton={true}
-                onClear={() => setDepartment('')}
-              />
+              <div className="flex flex-col align-start text-left">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="input-label text-sm font-medium text-[var(--color-text-primary)]" htmlFor="register-dept-input">
+                    Department *
+                  </label>
+                  {departmentsError && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        departmentService.clearCache();
+                        fetchDepartments();
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] text-[var(--color-primary)] hover:underline"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Retry</span>
+                    </button>
+                  )}
+                </div>
+                <select
+                  id="register-dept-input"
+                  value={departmentId}
+                  onChange={(e) => setDepartmentId(e.target.value)}
+                  className="input-box"
+                  disabled={isLoading || isDepartmentsLoading}
+                >
+                  <option value="">
+                    {isDepartmentsLoading ? 'Loading departments...' : 'Select your department'}
+                  </option>
+                  {groupedDepartments ? (
+                    <>
+                      {Object.entries(groupedDepartments.groups).map(([school, depts]) => (
+                        <optgroup key={school} label={school}>
+                          {depts.map((dept) => (
+                            <option key={dept.id} value={dept.id}>
+                              {dept.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      {groupedDepartments.ungrouped.length > 0 && (
+                        <optgroup label="Other / General">
+                          {groupedDepartments.ungrouped.map((dept) => (
+                            <option key={dept.id} value={dept.id}>
+                              {dept.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </>
+                  ) : (
+                    departments.map((dept) => (
+                      <option key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {departmentsError && (
+                  <p className="text-[11px] text-red-600 mt-1">
+                    {departmentsError} Tap retry to fetch again.
+                  </p>
+                )}
+              </div>
 
               <div className="flex flex-col align-start text-left">
                 <label className="input-label mb-1.5 text-sm font-medium text-[var(--color-text-primary)]" htmlFor="register-level-input">

@@ -7,8 +7,6 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { UserProfile, UserRole } from '../types';
 import { APP_CONFIG } from '../config/app.config';
-import { devStateStore } from '../dev/simulations/devState';
-import { isAuthorizedAdminRole } from '../types/adminTypes';
 import { 
   User, 
   Mail, 
@@ -16,9 +14,6 @@ import {
   Briefcase, 
   Save, 
   ShieldCheck,
-  Crown,
-  ChevronRight,
-  Check,
   Camera,
   Trash2,
   UploadCloud
@@ -29,19 +24,10 @@ import { ImageWithFallback } from '../components/common/ImageWithFallback';
 interface ProfileProps {
   currentUser: UserProfile | null;
   onUpdateProfile: (updated: UserProfile) => void;
-  onToggleRole: (newRole: UserRole) => void;
+  onToggleRole?: (newRole: UserRole) => void;
 }
 
-const SELECTABLE_ROLES: { role: UserRole; label: string; desc: string }[] = [
-  { role: 'Member', label: 'Regular Member', desc: 'Standard member access to bible, study outlines, hymns & news' },
-  { role: 'FS Student', label: 'FS Student', desc: 'Enrolled in Foundational School modules 1-4 with study records' },
-  { role: 'FS Teacher', label: 'FS Facilitator', desc: 'Instructor desk with study outlines, student evaluations & syllabus' },
-  { role: 'Publicity Coordinator', label: 'Publicity Coordinator (Admin)', desc: 'Editorial desk, broadcast announcements & fellowship public notices' },
-  { role: 'President / Executive', label: 'President / Executive (Admin)', desc: 'Full leadership & administrative authority across all modules' },
-  { role: 'Alumni', label: 'Alumni Brethren', desc: 'Postgraduate network, homecoming events & mentorship portal' },
-];
-
-export default function Profile({ currentUser, onUpdateProfile, onToggleRole }: ProfileProps) {
+export default function Profile({ currentUser, onUpdateProfile }: ProfileProps) {
   // If no user context, fallback
   const user: UserProfile = currentUser || {
     id: 'user_01',
@@ -66,13 +52,6 @@ export default function Profile({ currentUser, onUpdateProfile, onToggleRole }: 
   
   const [toastMessage, setToastMessage] = useState('');
   const [isDragging, setIsDragging] = useState(false);
-
-  const handleRoleSelection = (newRole: UserRole) => {
-    devStateStore.setSimulatedRole(newRole);
-    onToggleRole(newRole);
-    setToastMessage(`Switched active role to "${newRole}"`);
-    setTimeout(() => setToastMessage(''), 3000);
-  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -279,72 +258,33 @@ export default function Profile({ currentUser, onUpdateProfile, onToggleRole }: 
         </div>
 
         {/* Subgroup Designation (Administered by fellowship coordinators) */}
-        <div className="bg-[var(--color-background)] p-3.5 rounded-xl border border-[var(--color-border)] space-y-1" id="profile-subgroup-info">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-[var(--color-primary)]" />
-              <label className="text-xs font-semibold text-[var(--color-text-primary)]">
-                Fellowship Subgroup
-              </label>
-            </div>
-            <span className="text-[10px] text-[var(--color-text-secondary)] font-medium">
-              Designated by Coordinators
-            </span>
+        <div className="bg-[var(--color-background)] p-3.5 rounded-xl border border-[var(--color-border)] space-y-2" id="profile-subgroup-info">
+          <div className="flex items-center gap-2">
+            <Briefcase className="w-4 h-4 text-[var(--color-primary)]" />
+            <label className="text-xs font-semibold text-[var(--color-text-primary)]">
+              Fellowship Subgroup
+            </label>
           </div>
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-xs font-bold text-[var(--color-primary)] bg-[var(--color-surface)] px-2.5 py-1 rounded-lg border border-[var(--color-border)]">
+          <div>
+            <span className="inline-block text-xs font-bold text-[var(--color-primary)] bg-[var(--color-surface)] px-2.5 py-1 rounded-lg border border-[var(--color-border)]">
               {user.subgroup || 'General Assembly'}
-            </span>
-            <span className="text-[11px] text-[var(--color-text-secondary)]">
-              Unit designation
             </span>
           </div>
         </div>
 
-        {/* System Assigned Role (Clearance status & interactive switcher) */}
+        {/* System Assigned Role (Clearance status) */}
         <div className="bg-[var(--color-background)] p-4 rounded-xl border border-[var(--color-border)] space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <ShieldCheck className="w-5 h-5 text-[var(--color-primary)]" />
               <div>
                 <p className="text-xs font-semibold text-[var(--color-text-primary)]">Clearance & Role Assignment</p>
-                <p className="text-[11px] text-[var(--color-text-secondary)]">Current: <strong className="text-[var(--color-primary)]">{user.role}</strong></p>
+                <p className="text-[11px] text-[var(--color-text-secondary)]">Designated by fellowship leadership</p>
               </div>
             </div>
             <span className="text-xs bg-[var(--color-surface)] border border-[var(--color-border)] font-bold py-1 px-2.5 rounded-lg text-[var(--color-primary)]">
-              {user.role}
+              {user.roles?.join(', ') || user.role}
             </span>
-          </div>
-
-          <div className="pt-2 border-t border-[var(--color-border)] space-y-2">
-            <p className="text-[11px] font-bold text-[var(--color-text-secondary)] uppercase tracking-wider">
-              Switch Active Role for Testing:
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {SELECTABLE_ROLES.map((r) => {
-                const isSelected = user.role === r.role;
-                return (
-                  <button
-                    key={r.role}
-                    type="button"
-                    onClick={() => handleRoleSelection(r.role)}
-                    className={`p-2.5 rounded-lg border text-left text-xs transition-all cursor-pointer flex flex-col justify-between ${
-                      isSelected
-                        ? 'bg-[var(--color-primary-tint)] border-[var(--color-primary)] text-[var(--color-primary)] font-bold shadow-xs'
-                        : 'bg-[var(--color-surface)] border-[var(--color-border)] text-[var(--color-text-primary)] hover:border-[var(--color-primary)]/40'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between w-full">
-                      <span className="font-semibold truncate">{r.label}</span>
-                      {isSelected && <Check className="w-3.5 h-3.5 text-[var(--color-primary)] shrink-0" />}
-                    </div>
-                    <span className="text-[10px] text-[var(--color-text-secondary)] mt-0.5 line-clamp-1 font-normal">
-                      {r.desc}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </div>
 

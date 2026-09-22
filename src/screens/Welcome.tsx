@@ -20,7 +20,7 @@ export default function Welcome() {
           Anglican Students' Fellowship
         </h1>
         <p className="text-[var(--color-text-secondary)] text-sm mt-1 font-medium tracking-wide uppercase">
-          FUTA Chapter
+          FUTA Branch
         </p>
         <div className="w-12 h-1 bg-[var(--color-primary)] rounded-full mt-4"></div>
       </div>

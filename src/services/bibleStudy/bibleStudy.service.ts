@@ -11,13 +11,74 @@ import {
   DetectedStudyItem,
   SectionAliasItem,
   BookAliasItem,
-  ExtractedStudyFields
+  ExtractedStudyFields,
+  CreateBibleStudySeriesPayload,
+  BibleStudySeriesResponseData,
+  BibleStudySeriesDetail
 } from '../../types';
 import { mockBibleStudies } from '../../data/bibleStudyData';
 import { parseBibleReference } from '../../config/bible.config';
 import { APP_CONFIG } from '../../config/app.config';
 import { apiClient } from '../api/client';
 import { ApiError } from '../api/types';
+
+/**
+ * Format ISO YYYY-MM-DD or date string to readable Tuesday, Mon DD format
+ */
+export function formatStudyDate(isoDateStr?: string): string {
+  if (!isoDateStr) return '';
+  if (isoDateStr.includes(',')) return isoDateStr;
+  try {
+    const parts = isoDateStr.split('-');
+    if (parts.length === 3) {
+      const year = Number(parts[0]);
+      const month = Number(parts[1]) - 1;
+      const day = Number(parts[2]);
+      const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
+      return d.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC'
+      });
+    }
+    const d = new Date(isoDateStr);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric'
+      });
+    }
+  } catch {
+    // fallback
+  }
+  return isoDateStr;
+}
+
+/**
+ * Helper to check whether a YYYY-MM-DD date falls on a Tuesday (UTC safe).
+ */
+export function isDateTuesday(dateStr: string): boolean {
+  if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dateObj = new Date(Date.UTC(y, m - 1, d));
+  return dateObj.getUTCDay() === 2;
+}
+
+/**
+ * Returns the upcoming Tuesday in YYYY-MM-DD format (including today if today is Tuesday).
+ */
+export function getUpcomingTuesday(): string {
+  const now = new Date();
+  const day = now.getDay(); // 0 is Sunday, 2 is Tuesday
+  const diff = (2 - day + 7) % 7;
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff);
+  const year = target.getFullYear();
+  const month = String(target.getMonth() + 1).padStart(2, '0');
+  const dayStr = String(target.getDate()).padStart(2, '0');
+  return `${year}-${month}-${dayStr}`;
+}
 
 // In-memory mock storage for aliases when in mock mode
 let mockSectionAliases: SectionAliasItem[] = [
@@ -39,19 +100,44 @@ export function normalizeBibleStudyItem(raw: any): BibleStudyItem {
     return {
       id: '',
       lessonNumber: 1,
-      title: '',
+      title: 'Untitled Lesson',
+      topic: '',
+      theme: '',
+      annualTheme: '',
       subTheme: '',
       date: '',
+      scheduledDate: undefined,
+      studyDate: undefined,
       keyScripture: '',
+      textRef: '',
+      textScriptures: [],
+      textContent: null,
       summary: '',
+      aims: [],
+      aim: '',
       introduction: '',
+      sections: [],
+      studyGuide: undefined,
       discussionQuestions: [],
+      conclusion: '',
+      foodForThought: '',
       memoryVerse: { reference: '', text: '' },
       prayerPoints: [],
+      prayerText: '',
+      author: '',
+      teacher: '',
+      documentUrl: '',
+      documentType: 'pdf',
       isCurrent: false,
-      isPublished: false,
+      isPublished: true,
+      publicationStatus: 'published'
     };
   }
+
+  // Authoritative date resolution: prefer scheduledDate
+  const scheduledDate = raw.scheduledDate || raw.scheduled_date || undefined;
+  const legacyStudyDate = raw.studyDate || raw.study_date || raw.date || undefined;
+  const displayDate = scheduledDate ? formatStudyDate(scheduledDate) : String(legacyStudyDate || '').trim();
 
   // Memory verse normalization
   const rawMv = raw.memoryVerse || raw.memory_verse;
@@ -60,17 +146,45 @@ export function normalizeBibleStudyItem(raw: any): BibleStudyItem {
     normalizedMv = { reference: rawMv.trim(), text: '' };
   } else if (rawMv && typeof rawMv === 'object') {
     normalizedMv = {
-      reference: String(rawMv.reference || rawMv.ref || rawMv.verse || '').trim(),
-      text: String(rawMv.text || rawMv.content || rawMv.quote || '').trim(),
+      reference: String(raw.memoryVerseRef || raw.memory_verse_ref || rawMv.reference || rawMv.ref || rawMv.verse || '').trim(),
+      text: String(raw.memoryVerseText || raw.memory_verse_text || rawMv.text || rawMv.content || rawMv.quote || '').trim(),
+    };
+  } else if (raw.memoryVerseRef || raw.memoryVerseText) {
+    normalizedMv = {
+      reference: String(raw.memoryVerseRef || '').trim(),
+      text: String(raw.memoryVerseText || '').trim()
     };
   }
 
-  // Scripture references normalization
-  const rawKeyScripture = String(raw.keyScripture || raw.key_scripture || raw.key_verse || '').trim();
+  // Scripture references & textRef normalization
+  const rawTextRef = String(raw.textRef || raw.text_ref || '').trim();
+  const rawKeyScripture = String(raw.keyScripture || raw.key_scripture || raw.key_verse || rawTextRef || '').trim();
   const rawTextScriptures = raw.textScriptures || raw.text_scriptures;
-  const normalizedTextScriptures: string[] = Array.isArray(rawTextScriptures)
+  const normalizedTextScriptures: string[] = Array.isArray(rawTextScriptures) && rawTextScriptures.length > 0
     ? rawTextScriptures.map((s: any) => String(s).trim()).filter(Boolean)
-    : (rawKeyScripture ? [rawKeyScripture] : []);
+    : (rawTextRef ? [rawTextRef] : (rawKeyScripture ? [rawKeyScripture] : []));
+
+  // Study guide normalization: handles array of strings or array of objects
+  const rawStudyGuide = raw.studyGuide || raw.study_guide;
+  let normalizedStudyGuide = undefined;
+  if (Array.isArray(rawStudyGuide) && rawStudyGuide.length > 0) {
+    normalizedStudyGuide = rawStudyGuide.map((sg: any, idx: number) => {
+      if (typeof sg === 'string') {
+        return {
+          id: `sg-${idx + 1}`,
+          number: idx + 1,
+          question: sg.trim(),
+          scriptureRefs: []
+        };
+      }
+      return {
+        id: sg.id || `sg-${idx + 1}`,
+        number: sg.number || idx + 1,
+        question: sg.question || sg.text || '',
+        scriptureRefs: Array.isArray(sg.scriptureRefs || sg.scripture_refs) ? (sg.scriptureRefs || sg.scripture_refs) : []
+      };
+    });
+  }
 
   // Questions normalization
   const rawQuestions = raw.discussionQuestions || raw.discussion_questions || raw.questions;
@@ -93,16 +207,27 @@ export function normalizeBibleStudyItem(raw: any): BibleStudyItem {
   // Lesson number
   const parsedLessonNumber = Number(raw.lessonNumber ?? raw.lesson_number ?? raw.lesson ?? 1);
 
+  // Publication status normalization
+  const rawPubStatus = raw.publicationStatus || raw.publication_status;
+  const publicationStatus: 'draft' | 'published' = rawPubStatus 
+    ? (String(rawPubStatus).toLowerCase() === 'published' ? 'published' : 'draft')
+    : (raw.isPublished === false ? 'draft' : 'published');
+
   return {
     id: String(raw.id || raw._id || raw.studyId || raw.study_id || '').trim(),
     lessonNumber: Number.isNaN(parsedLessonNumber) || parsedLessonNumber <= 0 ? 1 : parsedLessonNumber,
     title: String(raw.title || raw.topic || raw.name || 'Untitled Lesson').trim(),
+    topic: String(raw.topic || raw.title || '').trim(),
     theme: raw.theme || raw.annualTheme || raw.annual_theme || '',
     annualTheme: raw.annualTheme || raw.annual_theme || raw.theme || '',
     subTheme: String(raw.subTheme || raw.sub_theme || raw.subtheme || '').trim(),
-    date: String(raw.date || raw.study_date || raw.studyDate || '').trim(),
+    date: displayDate,
+    scheduledDate,
+    studyDate: legacyStudyDate,
     keyScripture: rawKeyScripture,
+    textRef: rawTextRef || rawKeyScripture,
     textScriptures: normalizedTextScriptures,
+    textContent: raw.textContent !== undefined ? raw.textContent : null,
     summary: String(raw.summary || raw.description || raw.intro || raw.introduction || '').trim(),
     aims: normalizedAims,
     aim: raw.aim || normalizedAims[0] || '',
@@ -113,12 +238,7 @@ export function normalizeBibleStudyItem(raw: any): BibleStudyItem {
       paragraphs: Array.isArray(s.paragraphs) ? s.paragraphs : (s.content ? [s.content] : []),
       scriptureRefs: Array.isArray(s.scriptureRefs || s.scripture_refs) ? (s.scriptureRefs || s.scripture_refs) : []
     })) : [],
-    studyGuide: Array.isArray(raw.studyGuide || raw.study_guide) ? (raw.studyGuide || raw.study_guide).map((sg: any, idx: number) => ({
-      id: sg.id || `sg-${idx + 1}`,
-      number: sg.number || idx + 1,
-      question: sg.question || sg.text || '',
-      scriptureRefs: Array.isArray(sg.scriptureRefs || sg.scripture_refs) ? (sg.scriptureRefs || sg.scripture_refs) : []
-    })) : undefined,
+    studyGuide: normalizedStudyGuide,
     discussionQuestions: normalizedQuestions,
     conclusion: raw.conclusion || raw.summaryConclusion || '',
     foodForThought: raw.foodForThought || raw.food_for_thought || '',
@@ -130,7 +250,10 @@ export function normalizeBibleStudyItem(raw: any): BibleStudyItem {
     documentUrl: raw.documentUrl || raw.document_url || raw.file_url || raw.pdf_url || '',
     documentType: raw.documentType || raw.document_type || 'pdf',
     isCurrent: Boolean(raw.isCurrent ?? raw.is_current ?? false),
-    isPublished: Boolean(raw.isPublished ?? raw.is_published ?? true),
+    isPublished: publicationStatus === 'published',
+    publicationStatus,
+    seriesId: raw.seriesId || raw.series_id || undefined,
+    seriesTitle: raw.seriesTitle || raw.series_title || undefined
   };
 }
 
@@ -174,21 +297,57 @@ export const bibleStudyService = {
   },
 
   /**
-   * Fetch current/latest active Bible study session: GET /api/bible-study/current
+   * Fetch today's scheduled and published Bible study lesson:
+   * GET /api/bible-study/current
+   * 
+   * Strict Tuesday-only contract:
+   * Returns 200 with study only if scheduledDate is exactly today and published.
+   * Throws on network/server error.
+   * Returns null on 404 or NO_CURRENT_STUDY.
    */
-  async getLatestStudy(): Promise<BibleStudyItem | null> {
+  async getCurrentStudy(): Promise<BibleStudyItem | null> {
     if (APP_CONFIG.features.useMockServices) {
-      return mockBibleStudies.find(s => s.isCurrent && s.isPublished) || mockBibleStudies[0] || null;
+      const now = new Date();
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const d = String(now.getDate()).padStart(2, '0');
+      const todayIso = `${y}-${m}-${d}`;
+
+      // In mock mode, find published study scheduled for today, or fallback to isCurrent flag on Tuesday
+      const match = mockBibleStudies.find(s => 
+        s.isPublished && (s.scheduledDate === todayIso || (s.isCurrent && now.getDay() === 2))
+      );
+      return match || null;
     }
+
     try {
       const res = await apiClient.get<any>('/bible-study/current');
       const raw = res.data?.data || res.data;
-      if (raw) {
+      if (raw && (raw.id || raw.title || raw.topic)) {
         return normalizeBibleStudyItem(raw);
       }
       return null;
-    } catch (err) {
-      // Return null cleanly when no study is published for today (do not call invented endpoints)
+    } catch (err: any) {
+      // Backend returns 404 or NO_CURRENT_STUDY when no study is scheduled for today
+      if (
+        err?.code === 'NO_CURRENT_STUDY' || 
+        err?.statusCode === 404 || 
+        err?.message?.includes('No current Bible Study')
+      ) {
+        return null;
+      }
+      throw err;
+    }
+  },
+
+  /**
+   * Fetch current/latest active Bible study session:
+   * Backward-compatible wrapper around getCurrentStudy.
+   */
+  async getLatestStudy(): Promise<BibleStudyItem | null> {
+    try {
+      return await this.getCurrentStudy();
+    } catch {
       return null;
     }
   },
@@ -412,6 +571,227 @@ export const bibleStudyService = {
       }
       throw err;
     }
+  },
+
+  /**
+   * Create an entire Bible Study Series:
+   * POST /api/bible-study/series
+   * 
+   * Authoritative backend contract:
+   * - startDate must be YYYY-MM-DD and must be a Tuesday.
+   * - lessons must have at least one lesson with sequential lessonNumbers starting from 1.
+   * - Does NOT send studyDate.
+   * - Backend generates weekly Tuesday scheduledDate values.
+   * - Returned lessons all start with publicationStatus: 'draft'.
+   */
+  async createSeries(payload: CreateBibleStudySeriesPayload): Promise<BibleStudySeriesResponseData> {
+    if (!payload.theme?.trim()) {
+      throw new Error('Series theme is required.');
+    }
+    if (!payload.startDate?.trim()) {
+      throw new Error('Start date is required.');
+    }
+    if (!Array.isArray(payload.lessons) || payload.lessons.length === 0) {
+      throw new Error('Series must contain at least one lesson.');
+    }
+
+    // Clean lessons payload strictly adhering to contract
+    const cleanLessons = payload.lessons.map((lesson, idx) => {
+      const cleanLesson: Record<string, any> = {
+        lessonNumber: lesson.lessonNumber ?? (idx + 1),
+        topic: lesson.topic?.trim() || lesson.title?.trim() || `Lesson ${idx + 1}`
+      };
+      if (lesson.title?.trim()) cleanLesson.title = lesson.title.trim();
+      if (lesson.theme?.trim()) cleanLesson.theme = lesson.theme.trim();
+      if (lesson.textRef?.trim()) cleanLesson.textRef = lesson.textRef.trim();
+      
+      const mvRef = lesson.memoryVerseRef?.trim() || lesson.memoryVerse?.reference?.trim();
+      const mvText = lesson.memoryVerseText?.trim() || lesson.memoryVerse?.text?.trim();
+      if (mvRef) cleanLesson.memoryVerseRef = mvRef;
+      if (mvText) cleanLesson.memoryVerseText = mvText;
+
+      if (lesson.aim?.trim()) cleanLesson.aim = lesson.aim.trim();
+      if (lesson.introduction?.trim()) cleanLesson.introduction = lesson.introduction.trim();
+      if (Array.isArray(lesson.studyGuide) && lesson.studyGuide.length > 0) {
+        cleanLesson.studyGuide = lesson.studyGuide.map(s => String(s).trim()).filter(Boolean);
+      }
+      if (Array.isArray(lesson.discussionQuestions) && lesson.discussionQuestions.length > 0) {
+        cleanLesson.discussionQuestions = lesson.discussionQuestions.map(q => String(q).trim()).filter(Boolean);
+      }
+      if (lesson.conclusion?.trim()) cleanLesson.conclusion = lesson.conclusion.trim();
+      if (Array.isArray(lesson.prayerPoints) && lesson.prayerPoints.length > 0) {
+        cleanLesson.prayerPoints = lesson.prayerPoints.map(p => String(p).trim()).filter(Boolean);
+      }
+      return cleanLesson;
+    });
+
+    const cleanPayload: Record<string, any> = {
+      theme: payload.theme.trim(),
+      startDate: payload.startDate.trim(),
+      lessons: cleanLessons
+    };
+    if (payload.title?.trim()) {
+      cleanPayload.title = payload.title.trim();
+    }
+    if (payload.academicSessionId?.trim()) {
+      cleanPayload.academicSessionId = payload.academicSessionId.trim();
+    }
+
+    if (APP_CONFIG.features.useMockServices) {
+      const [y, m, d] = payload.startDate.split('-').map(Number);
+      const baseDate = new Date(Date.UTC(y, m - 1, d, 12, 0, 0));
+      const seriesId = `series-${Date.now()}`;
+
+      const generatedLessons = cleanLessons.map((l, idx) => {
+        const lessonDate = new Date(baseDate.getTime() + idx * 7 * 24 * 60 * 60 * 1000);
+        const yStr = lessonDate.getUTCFullYear();
+        const mStr = String(lessonDate.getUTCMonth() + 1).padStart(2, '0');
+        const dStr = String(lessonDate.getUTCDate()).padStart(2, '0');
+        const scheduledDate = `${yStr}-${mStr}-${dStr}`;
+
+        const newLessonItem: BibleStudyItem = {
+          id: `lesson-${seriesId}-${idx + 1}`,
+          lessonNumber: l.lessonNumber,
+          title: l.title || l.topic,
+          topic: l.topic,
+          theme: l.theme || payload.theme,
+          annualTheme: payload.theme,
+          subTheme: l.theme || payload.theme,
+          date: formatStudyDate(scheduledDate),
+          scheduledDate,
+          studyDate: scheduledDate,
+          keyScripture: l.textRef || '',
+          textRef: l.textRef || '',
+          textScriptures: l.textRef ? [l.textRef] : [],
+          textContent: null,
+          summary: l.introduction ? l.introduction.slice(0, 140) : '',
+          aims: l.aim ? [l.aim] : [],
+          aim: l.aim || '',
+          introduction: l.introduction || '',
+          studyGuide: (l.studyGuide || []).map((sg: string, sIdx: number) => ({
+            id: `sg-${idx + 1}-${sIdx + 1}`,
+            number: sIdx + 1,
+            question: sg,
+            scriptureRefs: []
+          })),
+          discussionQuestions: l.discussionQuestions || [],
+          conclusion: l.conclusion || '',
+          memoryVerse: {
+            reference: l.memoryVerseRef || '',
+            text: l.memoryVerseText || ''
+          },
+          prayerPoints: l.prayerPoints || [],
+          isCurrent: false,
+          isPublished: false,
+          publicationStatus: 'draft',
+          seriesId,
+          seriesTitle: payload.title
+        };
+        mockBibleStudies.push(newLessonItem);
+
+        return {
+          id: newLessonItem.id,
+          lessonNumber: l.lessonNumber,
+          title: newLessonItem.title,
+          topic: l.topic,
+          scheduledDate,
+          publicationStatus: 'draft' as const
+        };
+      });
+
+      return {
+        series: {
+          id: seriesId,
+          title: payload.title,
+          startDate: payload.startDate,
+          status: 'Draft',
+          theme: payload.theme,
+          academicSessionId: payload.academicSessionId
+        },
+        lessons: generatedLessons
+      };
+    }
+
+    const res = await apiClient.post<any>('/bible-study/series', cleanPayload);
+    return res.data?.data || res.data;
+  },
+
+  /**
+   * Fetch a specific Bible study series by its ID:
+   * GET /api/bible-study/series/:id
+   */
+  async getSeriesById(id: string): Promise<BibleStudySeriesDetail | null> {
+    if (APP_CONFIG.features.useMockServices) {
+      const seriesLessons = mockBibleStudies.filter(s => s.seriesId === id);
+      return {
+        id,
+        title: seriesLessons[0]?.seriesTitle || 'Curriculum Series',
+        startDate: seriesLessons[0]?.scheduledDate || '2026-09-29',
+        status: 'Draft',
+        academicSessionId: seriesLessons[0]?.academicSessionId,
+        lessons: seriesLessons.map(s => ({
+          id: s.id,
+          lessonNumber: s.lessonNumber,
+          title: s.title,
+          topic: s.topic,
+          scheduledDate: s.scheduledDate || '2026-09-29',
+          publicationStatus: s.publicationStatus || 'draft'
+        }))
+      };
+    }
+    try {
+      const res = await apiClient.get<any>(`/bible-study/series/${encodeURIComponent(id)}`);
+      return res.data?.data || res.data || null;
+    } catch (err) {
+      console.warn(`Failed to fetch series with id ${id}:`, err);
+      return null;
+    }
+  },
+
+  /**
+   * Explicitly publish a lesson outline:
+   * PATCH /api/bible-study/:id/publish
+   */
+  async publishStudy(id: string): Promise<BibleStudyItem> {
+    if (APP_CONFIG.features.useMockServices) {
+      const study = mockBibleStudies.find(s => s.id === id);
+      if (study) {
+        study.isPublished = true;
+        study.publicationStatus = 'published';
+        return study;
+      }
+      throw new Error(`Study with id ${id} not found.`);
+    }
+
+    const res = await apiClient.patch<any>(`/bible-study/${encodeURIComponent(id)}/publish`);
+    return normalizeBibleStudyItem(res.data?.data || res.data);
+  },
+
+  /**
+   * Reschedule an individual lesson:
+   * PUT /api/bible-study/:id
+   * with payload { scheduledDate: "YYYY-MM-DD" }
+   */
+  async rescheduleStudy(id: string, scheduledDate: string): Promise<BibleStudyItem> {
+    if (!scheduledDate?.trim()) {
+      throw new Error('Scheduled date is required.');
+    }
+
+    if (APP_CONFIG.features.useMockServices) {
+      const study = mockBibleStudies.find(s => s.id === id);
+      if (study) {
+        study.scheduledDate = scheduledDate.trim();
+        study.studyDate = scheduledDate.trim();
+        study.date = formatStudyDate(scheduledDate.trim());
+        return study;
+      }
+      throw new Error(`Study with id ${id} not found.`);
+    }
+
+    const res = await apiClient.put<any>(`/bible-study/${encodeURIComponent(id)}`, {
+      scheduledDate: scheduledDate.trim()
+    });
+    return normalizeBibleStudyItem(res.data?.data || res.data);
   },
 
   /**

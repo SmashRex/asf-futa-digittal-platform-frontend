@@ -7,15 +7,18 @@ import { UserProfile, UserRole } from '../../types';
 import { isAuthorizedAdminRole } from '../../types/adminTypes';
 import { APP_CONFIG } from '../../config/app.config';
 import { API_CONFIG } from '../../config/api.config';
+import { getDepartmentName, findDepartmentIdByName } from '../../config/departments.config';
 
 export interface RegisterPayload {
   name: string;
   email: string;
   password?: string;
-  department: string;
+  departmentId?: string;
+  gender: 'Male' | 'Female';
+  department?: string; // legacy optional for backward compatibility
   level?: string;
   academicLevel?: string;
-  programDurationYears?: 4 | 5;
+  programDurationYears?: 4 | 5 | number;
   phoneNumber?: string;
   subgroup?: string;
 }
@@ -46,7 +49,7 @@ class AuthService {
       if (!rawUser?.id) missing.push('id');
       if (!rawUser?.email) missing.push('email');
       if (!rawUser?.name) missing.push('name');
-      if (!rawUser?.department) missing.push('department');
+      if (!rawUser?.departmentId && !rawUser?.department) missing.push('departmentId');
       if (!rawUser?.academicLevel && !rawUser?.level) missing.push('academicLevel');
       if (!rawUser?.roles || !Array.isArray(rawUser.roles)) missing.push('roles (array)');
 
@@ -66,11 +69,17 @@ class AuthService {
     const academicLevel = rawUser?.academicLevel || rawUser?.level || '400 Level';
     const membershipStatus = rawUser?.membershipStatus || (academicLevel === 'Alumni' ? 'Alumni' : 'Active Student');
 
+    const departmentId = rawUser?.departmentId || (rawUser?.department ? findDepartmentIdByName(rawUser.department) : '');
+    const departmentName = rawUser?.department || (departmentId ? getDepartmentName(departmentId) : '');
+    const gender = (rawUser?.gender === 'Male' || rawUser?.gender === 'Female') ? rawUser.gender : null;
+
     return {
       id: rawUser?.id || `usr_${Date.now()}`,
       name: rawUser?.name || '',
       email: rawUser?.email || '',
-      department: rawUser?.department || '',
+      departmentId: departmentId || undefined,
+      department: departmentName,
+      gender,
       academicLevel,
       level: academicLevel,
       subgroup: rawUser?.subgroup,
@@ -102,15 +111,35 @@ class AuthService {
       throw error;
     }
 
+    const effectiveDeptId = (payload.departmentId || (payload.department ? findDepartmentIdByName(payload.department) : '') || '').trim();
+    if (!effectiveDeptId) {
+      const error: any = new Error('Department is required');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+
+    if (!payload.gender || (payload.gender !== 'Male' && payload.gender !== 'Female')) {
+      const error: any = new Error('Gender is required and must be either Male or Female');
+      error.code = 'VALIDATION_ERROR';
+      throw error;
+    }
+
     const effectiveDuration: 4 | 5 = payload.programDurationYears === 5 ? 5 : 4;
-    const requestPayload = {
-      email: payload.email.trim().toLowerCase(),
+    const requestPayload: any = {
       name: payload.name.trim(),
+      email: payload.email.trim().toLowerCase(),
       password: payload.password,
-      department: payload.department.trim(),
+      departmentId: effectiveDeptId,
+      gender: payload.gender,
       academicLevel: payload.academicLevel || payload.level || '100 Level',
       programDurationYears: effectiveDuration,
     };
+    if (payload.phoneNumber?.trim()) {
+      requestPayload.phoneNumber = payload.phoneNumber.trim();
+    }
+    if (payload.subgroup?.trim()) {
+      requestPayload.subgroup = payload.subgroup.trim();
+    }
 
     if (!APP_CONFIG.features.useMockServices) {
       const response = await fetch(`${API_CONFIG.baseUrl}/auth/register`, {
@@ -167,7 +196,9 @@ class AuthService {
           id: `usr_${Date.now()}`,
           name: payload.name.trim(),
           email: payload.email.trim().toLowerCase(),
-          department: payload.department.trim(),
+          departmentId: effectiveDeptId,
+          department: getDepartmentName(effectiveDeptId),
+          gender: payload.gender,
           academicLevel: payload.academicLevel || payload.level || '100 Level',
           subgroup: payload.subgroup?.trim() || 'General Assembly',
           phoneNumber: payload.phoneNumber?.trim() || undefined,

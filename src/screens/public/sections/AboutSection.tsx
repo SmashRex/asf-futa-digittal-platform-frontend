@@ -1,8 +1,29 @@
 import React from 'react';
+import { Music, BookOpen, Users } from 'lucide-react';
 import { useWebsiteCopy } from '../../../hooks/useWebsiteCopy';
 import { AboutSectionCopy } from '../../../types/websiteCopy';
 import { useMediaPlacement } from '../../../hooks/useMediaPlacement';
 import { ImageWithFallback } from '../../../components/common/ImageWithFallback';
+
+function PrayIcon({ className = "w-6 h-6" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v13" />
+      <path d="M9 7l3-4 3 4" />
+      <path d="M8 12a3 3 0 0 0-3 3v3a2 2 0 0 0 2 2h3a2 2 0 0 0 2-2v-3" />
+      <path d="M16 12a3 3 0 0 1 3 3v3a2 2 0 0 1-2 2h-3a2 2 0 0 1-2-2v-3" />
+    </svg>
+  );
+}
 
 interface AboutSectionProps {
   aboutContent?: AboutSectionCopy;
@@ -60,14 +81,14 @@ export default function AboutSection({ aboutContent }: AboutSectionProps = {}) {
               It's More Than a Service.
             </h2>
             <p className="font-body-reading text-lg text-stone-600">
-              There is more to ASF than showing up for a meeting. It's about what happens when students choose to walk with Christ — together.
+              There is more to ASF than showing up for a meeting. It's about what happens when students choose to walk with Christ, together.
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-[#FAF8F5] p-8 rounded-2xl border border-stone-100 flex flex-col gap-4 hover:shadow-md transition-shadow">
               <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm text-[#5B0617] mb-2">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <Music className="w-6 h-6" />
               </div>
               <h3 className="font-headline-md text-xl font-bold text-[#18181B]">{about.worshipTitle}</h3>
               <p className="font-body-md text-stone-600 leading-relaxed">
@@ -77,7 +98,7 @@ export default function AboutSection({ aboutContent }: AboutSectionProps = {}) {
 
             <div className="bg-[#FAF8F5] p-8 rounded-2xl border border-stone-100 flex flex-col gap-4 hover:shadow-md transition-shadow">
               <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm text-[#5B0617] mb-2">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                <BookOpen className="w-6 h-6" />
               </div>
               <h3 className="font-headline-md text-xl font-bold text-[#18181B]">{about.learnTitle}</h3>
               <p className="font-body-md text-stone-600 leading-relaxed">
@@ -87,7 +108,7 @@ export default function AboutSection({ aboutContent }: AboutSectionProps = {}) {
 
             <div className="bg-[#FAF8F5] p-8 rounded-2xl border border-stone-100 flex flex-col gap-4 hover:shadow-md transition-shadow">
               <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm text-[#5B0617] mb-2">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                <PrayIcon className="w-6 h-6" />
               </div>
               <h3 className="font-headline-md text-xl font-bold text-[#18181B]">{about.prayTitle}</h3>
               <p className="font-body-md text-stone-600 leading-relaxed">
@@ -97,7 +118,7 @@ export default function AboutSection({ aboutContent }: AboutSectionProps = {}) {
 
             <div className="bg-[#FAF8F5] p-8 rounded-2xl border border-stone-100 flex flex-col gap-4 hover:shadow-md transition-shadow">
               <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm text-[#5B0617] mb-2">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <Users className="w-6 h-6" />
               </div>
               <h3 className="font-headline-md text-xl font-bold text-[#18181B]">{about.lifeTitle}</h3>
               <p className="font-body-md text-stone-600 leading-relaxed">

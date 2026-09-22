@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
+import Logo from '../Logo';
 
 export default function PublicHeader() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -71,8 +72,8 @@ export default function PublicHeader() {
   return (
     <>
       <header className="bg-white/90 backdrop-blur-md w-full top-0 sticky border-b border-stone-200 flex items-center justify-between px-4 sm:px-6 lg:px-8 h-20 z-50 transition-colors shadow-sm">
-        <Link to="/" className="flex items-center gap-2 group">
-          <span className="font-label-caps text-[#5B0617] font-bold text-lg tracking-widest uppercase">ASF FUTA</span>
+        <Link to="/" className="flex items-center group transition-opacity hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5B0617] rounded-lg" aria-label="ASF FUTA Home">
+          <Logo size="sm" theme="maroon" variant="futa" />
         </Link>
         
         {/* Mobile Menu Toggle */}

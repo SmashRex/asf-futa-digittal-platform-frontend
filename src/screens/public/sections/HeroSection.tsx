@@ -2,31 +2,58 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Calendar } from 'lucide-react';
 import { useWebsiteContent } from '../../../hooks/useWebsiteContent';
+import { useMediaPlacement } from '../../../hooks/useMediaPlacement';
 import { HeroSectionCopy } from '../../../types/websiteCopy';
+
+export interface HeroBackgroundImageConfig {
+  imageUrl?: string;
+  mobileImageUrl?: string;
+  altText?: string;
+  overlayOpacity?: number;
+}
 
 interface HeroSectionProps {
   heroContent?: HeroSectionCopy;
+  backgroundImage?: HeroBackgroundImageConfig;
 }
 
-export default function HeroSection({ heroContent }: HeroSectionProps) {
+export default function HeroSection({ heroContent, backgroundImage }: HeroSectionProps) {
   const websiteContent = useWebsiteContent();
   const hero = heroContent || websiteContent.hero;
+  const { asset: mediaAsset } = useMediaPlacement('public.hero.background');
+
+  const activeBackground = backgroundImage || (mediaAsset?.url ? { imageUrl: mediaAsset.url, altText: mediaAsset.altText } : undefined);
+  const hasBackgroundImage = Boolean(activeBackground?.imageUrl);
 
   return (
     <section className="relative w-full min-h-[calc(100vh-5rem)] sm:min-h-[640px] flex items-center justify-center pt-20 pb-16 px-4 sm:px-6 lg:px-8 bg-[#FDFBF9] overflow-hidden">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0">
-        <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-[#5B0617]/5 blur-[100px]" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full bg-[#FEBE56]/10 blur-[120px]" />
-      </div>
+      {/* Responsive Background Layer */}
+      {hasBackgroundImage ? (
+        <div className="absolute inset-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+          <picture>
+            {activeBackground?.mobileImageUrl && (
+              <source media="(max-width: 639px)" srcSet={activeBackground.mobileImageUrl} />
+            )}
+            <img
+              src={activeBackground?.imageUrl}
+              alt={activeBackground?.altText || 'ASF Fellowship'}
+              className="w-full h-full object-cover object-center max-sm:object-top"
+            />
+          </picture>
+          <div 
+            className="absolute inset-0 bg-gradient-to-b from-[#FDFBF9]/92 via-[#FDFBF9]/88 to-[#FDFBF9]"
+            style={{ opacity: activeBackground?.overlayOpacity ?? 1 }}
+          />
+        </div>
+      ) : (
+        /* Background Decorative Elements (Current intentional design) */
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden z-0 pointer-events-none">
+          <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full bg-[#5B0617]/5 blur-[100px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] rounded-full bg-[#FEBE56]/10 blur-[120px]" />
+        </div>
+      )}
 
       <div className="relative z-10 max-w-7xl mx-auto flex flex-col items-center text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#5B0617]/10 text-[#5B0617] mb-8 animate-fade-in-up">
-          <span className="w-2 h-2 rounded-full bg-[#5B0617] animate-pulse" />
-          <span className="font-label-caps text-label-caps tracking-widest uppercase font-bold text-[11px]">ASF FUTA</span>
-          <span className="hidden sm:inline border-l border-[#5B0617]/20 pl-2 ml-1 text-[11px] font-medium tracking-wide">Federal University of Technology, Akure</span>
-        </div>
-        
         <h1 className="font-display-reading text-5xl sm:text-6xl md:text-7xl lg:text-8xl text-[#18181B] tracking-tight leading-[1.05] mb-6 max-w-4xl animate-fade-in-up" style={{ animationDelay: '100ms' }}>
           {hero.headline.split('\n').map((line, idx) => (
             <React.Fragment key={idx}>

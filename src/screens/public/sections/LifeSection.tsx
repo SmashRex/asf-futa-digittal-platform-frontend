@@ -99,14 +99,11 @@ export default function LifeSection({ lifeContent }: LifeSectionProps = {}) {
               ))}
             </h2>
             <div className="font-body-reading text-lg text-stone-600 space-y-4 max-w-lg whitespace-pre-wrap">
-              {life.supportingCopy.split('\n\n').map((paragraph, index) => {
-                const isLast = index === life.supportingCopy.split('\n\n').length - 1;
-                return (
-                  <p key={index} className={isLast ? "font-semibold text-[#18181B]" : ""}>
-                    {paragraph}
-                  </p>
-                );
-              })}
+              {life.supportingCopy.split('\n\n').map((paragraph, index) => (
+                <p key={index} className="font-normal text-stone-600 leading-relaxed">
+                  {paragraph}
+                </p>
+              ))}
             </div>
           </div>
           
