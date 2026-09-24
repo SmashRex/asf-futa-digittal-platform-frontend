@@ -5,9 +5,10 @@
 
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Clock, MapPin, ArrowRight, Sparkles, BellRing } from 'lucide-react';
+import { Calendar, Clock, MapPin, ArrowRight, Sparkles, BellRing, Ban } from 'lucide-react';
 import { EventItem } from '../types';
 import { ImageWithFallback } from './common/ImageWithFallback';
+import { formatEventDate, formatEventTime } from '../utils/eventDate';
 
 interface NextEventCardProps {
   event: EventItem;
@@ -16,31 +17,11 @@ interface NextEventCardProps {
 
 export default function NextEventCard({ event, isReminded }: NextEventCardProps) {
   const navigate = useNavigate();
-
-  // Status Badge styling helper
-  const getStatusBadge = () => {
-    if (event.isToday || event.status === 'Happening Today') {
-      return (
-        <span className="px-2.5 py-1 bg-rose-600 text-white font-bold text-[10px] uppercase tracking-wider rounded-full shadow-2xs animate-pulse flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
-          <span>Happening Today</span>
-        </span>
-      );
-    }
-    if (event.isSoon || event.status === 'Starting Soon') {
-      return (
-        <span className="px-2.5 py-1 bg-amber-500 text-amber-950 font-bold text-[10px] uppercase tracking-wider rounded-full shadow-2xs flex items-center gap-1">
-          <Sparkles className="w-3 h-3 text-amber-950" />
-          <span>Starting Soon</span>
-        </span>
-      );
-    }
-    return (
-      <span className="px-2.5 py-1 bg-[var(--color-primary-tint)] text-[var(--color-primary)] font-bold text-[10px] uppercase tracking-wider rounded-full border border-[var(--color-primary)]/20">
-        Next Featured Gathering
-      </span>
-    );
-  };
+  const isCancelled = event.status === 'Cancelled';
+  const displayDate = formatEventDate(event.startTime);
+  const displayTime = formatEventTime(event.startTime, event.endTime);
+  const location = event.location || event.venue || 'Fellowship Sanctuary, FUTA';
+  const heroImage = event.imageUrl || event.image;
 
   return (
     <section className="mb-6" id="next-event-section">
@@ -57,24 +38,39 @@ export default function NextEventCard({ event, isReminded }: NextEventCardProps)
         </div>
 
         <div className="shrink-0">
-          {getStatusBadge()}
+          {isCancelled ? (
+            <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-200 font-bold text-[10px] uppercase tracking-wider rounded-full flex items-center gap-1">
+              <Ban className="w-3 h-3 text-rose-700" />
+              <span>Cancelled</span>
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 bg-[var(--color-primary-tint)] text-[var(--color-primary)] font-bold text-[10px] uppercase tracking-wider rounded-full border border-[var(--color-primary)]/20">
+              Next Gathering
+            </span>
+          )}
         </div>
       </div>
 
       <article 
         onClick={() => navigate(`/events/${event.id}`)}
-        className="next-event-card group cursor-pointer transition-all hover:border-[var(--color-primary)]/40"
+        className={`next-event-card group cursor-pointer transition-all hover:border-[var(--color-primary)]/40 ${
+          isCancelled ? 'opacity-75 bg-stone-50' : ''
+        }`}
         id={`next-event-card-${event.id}`}
       >
         {/* Hero Image Container */}
-        <div className="next-event-image-container">
-          <ImageWithFallback
-            src={event.image}
-            fallbackType="eventHero"
-            preset="card"
-            alt={event.title}
-            className="next-event-image"
-          />
+        <div className="next-event-image-container relative bg-stone-900">
+          {heroImage ? (
+            <ImageWithFallback
+              src={heroImage}
+              fallbackType="eventHero"
+              preset="card"
+              alt={event.title}
+              className="next-event-image"
+            />
+          ) : (
+            <div className="w-full h-48 bg-gradient-to-br from-[#5B0617] via-[#480512] to-stone-900" />
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent flex items-end p-4">
             <div className="flex flex-wrap items-center gap-2">
               <span className="px-3 py-1 bg-[var(--color-accent)] text-amber-950 font-bold text-[11px] uppercase tracking-wider rounded-full shadow-2xs">
@@ -83,7 +79,7 @@ export default function NextEventCard({ event, isReminded }: NextEventCardProps)
               <span className="px-3 py-1 bg-black/60 text-white font-semibold text-[11px] rounded-full backdrop-blur-md border border-white/20">
                 {event.mode}
               </span>
-              {isReminded && (
+              {isReminded && !isCancelled && (
                 <span className="px-2.5 py-1 bg-emerald-600 text-white font-bold text-[11px] rounded-full inline-flex items-center gap-1 shadow-2xs">
                   <BellRing className="w-3 h-3" />
                   <span>Reminder Active</span>
@@ -101,26 +97,34 @@ export default function NextEventCard({ event, isReminded }: NextEventCardProps)
                 Theme: "{event.theme}"
               </span>
             )}
-            <h2 className="text-lg sm:text-xl font-bold font-serif text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)] transition-colors leading-snug mb-1.5">
+            <h2 className={`text-lg sm:text-xl font-bold font-serif leading-snug mb-1.5 transition-colors ${
+              isCancelled 
+                ? 'text-stone-500 line-through' 
+                : 'text-[var(--color-text-primary)] group-hover:text-[var(--color-primary)]'
+            }`}>
               {event.title}
             </h2>
-            <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] line-clamp-2 leading-relaxed">
-              {event.shortDescription}
-            </p>
+            {(event.shortDescription || event.description) && (
+              <p className="text-xs sm:text-sm text-[var(--color-text-secondary)] line-clamp-2 leading-relaxed">
+                {event.shortDescription || event.description}
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-2 pt-2 border-t border-[var(--color-border)] text-xs text-[var(--color-text-primary)]">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
-              <span className="font-semibold">{event.startDate}</span>
-            </div>
+            {displayDate && (
+              <div className="flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
+                <span className="font-semibold">{displayDate}</span>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
-              <span>{event.startTime} - {event.endTime}</span>
+              <span>{displayTime}</span>
             </div>
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
-              <span className="truncate">{event.venue}</span>
+              <span className="truncate">{location}</span>
             </div>
           </div>
 
@@ -132,7 +136,7 @@ export default function NextEventCard({ event, isReminded }: NextEventCardProps)
             className="w-full py-2.5 bg-[var(--color-primary)] text-white text-xs font-bold rounded-xl hover:bg-[var(--color-primary-dark)] transition-all flex items-center justify-center gap-2 shadow-2xs group-hover:gap-3 cursor-pointer"
             id="view-next-event-details-btn"
           >
-            <span>View Details & Reminder</span>
+            <span>View Details</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>

@@ -8,9 +8,27 @@ import { eventsService } from '../events/events.service';
 
 describe('Events Service', () => {
   it('should fetch upcoming events in mock mode', async () => {
-    const events = await eventsService.getEvents({ filter: 'upcoming' });
+    const events = await eventsService.getUpcomingEvents();
     expect(Array.isArray(events)).toBe(true);
     expect(events.length).toBeGreaterThan(0);
+    events.forEach(ev => {
+      expect(ev.location).toBeDefined();
+      expect(ev.startTime).toBeDefined();
+    });
+  });
+
+  it('should fetch past events in mock mode', async () => {
+    const pastEvents = await eventsService.getPastEvents();
+    expect(Array.isArray(pastEvents)).toBe(true);
+  });
+
+  it('should fetch featured event or return null gracefully', async () => {
+    const featured = await eventsService.getFeaturedEvent();
+    if (featured) {
+      expect(featured.id).toBeDefined();
+      expect(featured.title).toBeDefined();
+      expect(featured.location).toBeDefined();
+    }
   });
 
   it('should filter events by category', async () => {
@@ -26,9 +44,9 @@ describe('Events Service', () => {
     results.forEach(evt => {
       const match = 
         evt.title.toLowerCase().includes('worship') ||
-        evt.description.toLowerCase().includes('worship') ||
+        (evt.description && evt.description.toLowerCase().includes('worship')) ||
         evt.category.toLowerCase().includes('worship') ||
-        evt.venue.toLowerCase().includes('worship') ||
+        (evt.location && evt.location.toLowerCase().includes('worship')) ||
         (evt.theme && evt.theme.toLowerCase().includes('worship'));
       expect(match).toBe(true);
     });
@@ -44,8 +62,13 @@ describe('Events Service', () => {
   });
 
   it('should fetch calendar semester schedule items', async () => {
-    const schedule = await eventsService.getSchedule();
+    const schedule = await eventsService.getSemesterSchedule();
     expect(Array.isArray(schedule)).toBe(true);
     expect(schedule.length).toBeGreaterThan(0);
+  });
+
+  it('should support cancellation of an event', async () => {
+    const cancelled = await eventsService.cancelEvent('evt-02');
+    expect(cancelled.status).toBe('Cancelled');
   });
 });

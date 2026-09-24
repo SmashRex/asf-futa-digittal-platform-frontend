@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { EventItem, ReminderOffset } from '../../types';
 import { EVENTS_CONTENT } from '../../content/events-content';
 import { Bell, Check, X, Clock } from 'lucide-react';
+import { formatEventDateTime } from '../../utils/eventDate';
 
 interface EventReminderModalProps {
   event: EventItem;
@@ -60,7 +61,7 @@ export const EventReminderModal: React.FC<EventReminderModalProps> = ({
           <p className="text-xs font-semibold text-[var(--color-text-primary)] line-clamp-1">{event.title}</p>
           <p className="text-[11px] text-[var(--color-text-secondary)] mt-0.5 flex items-center gap-1">
             <Clock className="w-3 h-3 text-[var(--color-primary)]" />
-            <span>{event.startDate} at {event.startTime}</span>
+            <span>{formatEventDateTime(event.startTime, event.endTime)}</span>
           </p>
         </div>
 

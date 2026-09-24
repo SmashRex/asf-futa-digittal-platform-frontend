@@ -18,10 +18,12 @@ import {
   FileText,
   AlignLeft,
   User,
-  Compass
+  Compass,
+  MessageSquare
 } from 'lucide-react';
 import { bibleStudyService, formatStudyDate } from '../services/bibleStudy/bibleStudy.service';
-import { BibleStudyItem } from '../types';
+import { bibleService } from '../services/bible/bible.service';
+import { BibleStudyItem, BibleResolvedPassage } from '../types';
 import BibleReferenceOverlay from '../components/BibleReferenceOverlay';
 import BibleReferenceLink from '../components/bible/BibleReferenceLink';
 import StudyDocumentViewer from '../components/bibleStudy/StudyDocumentViewer';
@@ -46,6 +48,10 @@ export default function BibleStudyReader({
   // Study state
   const [study, setStudy] = useState<BibleStudyItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Dynamic Scripture resolution state (when textContent is null)
+  const [resolvedPassage, setResolvedPassage] = useState<BibleResolvedPassage | null>(null);
+  const [isLoadingPassage, setIsLoadingPassage] = useState(false);
 
   // Overlay state
   const [overlayRef, setOverlayRef] = useState('');
@@ -75,6 +81,51 @@ export default function BibleStudyReader({
     return () => { isMounted = false; };
   }, [studyId]);
 
+  // Dynamically resolve Scripture text when textContent is null/empty
+  useEffect(() => {
+    if (!study) {
+      setResolvedPassage(null);
+      setIsLoadingPassage(false);
+      return;
+    }
+
+    // If textContent is already provided directly by backend, no need to query Bible API
+    if (study.textContent && study.textContent.trim().length > 0) {
+      setResolvedPassage(null);
+      setIsLoadingPassage(false);
+      return;
+    }
+
+    const primaryRef = study.textRef || (Array.isArray(study.textScriptures) && study.textScriptures[0]) || study.keyScripture;
+    if (!primaryRef) {
+      setResolvedPassage(null);
+      setIsLoadingPassage(false);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingPassage(true);
+
+    bibleService.resolveReference(primaryRef, activeVersionId || 'kjv')
+      .then((passage) => {
+        if (isMounted) {
+          setResolvedPassage(passage);
+          setIsLoadingPassage(false);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not auto-resolve Scripture text for textRef:', primaryRef, err);
+        if (isMounted) {
+          setResolvedPassage(null);
+          setIsLoadingPassage(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [study, activeVersionId]);
+
   useEffect(() => {
     if (!study) return;
     try {
@@ -100,11 +151,6 @@ export default function BibleStudyReader({
     } catch {
       // Ignore storage errors
     }
-  };
-
-  const handleRefClick = (ref: string) => {
-    setOverlayRef(ref);
-    setIsOverlayOpen(true);
   };
 
   const handleBookmarkClick = () => {
@@ -195,7 +241,13 @@ export default function BibleStudyReader({
 
   const textScripturesList = Array.isArray(study.textScriptures) && study.textScriptures.length > 0
     ? study.textScriptures
-    : (study.keyScripture ? [study.keyScripture] : []);
+    : (study.keyScripture ? [study.keyScripture] : (study.textRef ? [study.textRef] : []));
+
+  const displayStudyDate = study.scheduledDate 
+    ? formatStudyDate(study.scheduledDate) 
+    : (study.studyDate ? formatStudyDate(study.studyDate) : formatStudyDate(study.date));
+
+  const seriesContextTheme = study.theme || study.seriesTitle || (study.annualTheme && study.annualTheme !== study.title ? study.annualTheme : null);
 
   return (
     <div className="flex-1 flex flex-col bg-[var(--color-background)] select-none" id="bible-study-reader-screen">
@@ -208,7 +260,7 @@ export default function BibleStudyReader({
           id="study-reader-back-btn"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Outlines</span>
+          <span>Bible Study</span>
         </button>
 
         {/* View Switcher Tabs (if documentUrl exists) */}
@@ -285,22 +337,30 @@ export default function BibleStudyReader({
         ) : (
           <article className="study-reader select-text max-w-3xl mx-auto">
             
-            {/* Metadata Header */}
+            {/* Metadata Header with Series Context */}
             <div className="study-reader-header" id="study-metadata-header">
               <span className="study-reader-badge">
                 Lesson {study.lessonNumber}
               </span>
-              <div className="study-reader-theme font-medium">
-                {study.annualTheme || study.theme || "The Reign of God: Marriage And Christian Lifestyle"}
-              </div>
-              {(study.subTheme || (study.theme && study.annualTheme && study.theme !== study.annualTheme)) && (
-                <div className="study-reader-subtheme font-medium">
-                  {study.subTheme || study.theme}
+
+              {/* Dynamic Semester Theme / Series Context (Omitted if unavailable) */}
+              {seriesContextTheme && (
+                <div className="study-reader-theme font-medium text-xs sm:text-sm text-[var(--color-primary)] tracking-wide uppercase">
+                  {seriesContextTheme}
                 </div>
               )}
-              <div className="study-reader-date">
-                {study.scheduledDate ? formatStudyDate(study.scheduledDate) : study.date}
-              </div>
+
+              {study.subTheme && study.subTheme !== seriesContextTheme && (
+                <div className="study-reader-subtheme font-medium">
+                  {study.subTheme}
+                </div>
+              )}
+
+              {displayStudyDate && (
+                <div className="study-reader-date">
+                  {displayStudyDate}
+                </div>
+              )}
 
               {/* Study Title Topic */}
               <h1 className="study-reader-title" id="study-topic-headline">
@@ -326,12 +386,16 @@ export default function BibleStudyReader({
               )}
             </div>
 
-            {/* Scripture TEXT Box */}
+            {/* Scripture TEXT Box with Inline Dynamic Scripture Resolution */}
             <div className="study-text-card" id="study-text-box">
               <div className="flex items-center justify-between mb-2">
                 <h2 className="study-text-label">Text Scripture Passages</h2>
-                <span className="text-[10px] text-[var(--color-text-secondary)] font-sans">Tap to open Holy Bible</span>
+                <span className="text-[10px] text-[var(--color-text-secondary)] font-sans">
+                  Tap to open Holy Bible
+                </span>
               </div>
+
+              {/* Interactive Reference Buttons */}
               <div className="flex flex-wrap gap-2">
                 {textScripturesList.map((ref) => (
                   <BibleReferenceLink
@@ -344,16 +408,51 @@ export default function BibleStudyReader({
                 ))}
               </div>
 
-              {/* Scripture text content when provided by backend */}
-              {study.textContent && (
-                <div className="mt-3 p-3.5 bg-white rounded-lg border border-[var(--color-border)] text-sm font-serif leading-relaxed text-[var(--color-text-primary)] whitespace-pre-line shadow-2xs">
+              {/* Directly provided text content */}
+              {study.textContent && study.textContent.trim().length > 0 && (
+                <div className="mt-3.5 p-4 bg-white rounded-xl border border-[var(--color-border)] text-base font-serif leading-relaxed text-[var(--color-text-primary)] whitespace-pre-line shadow-2xs">
                   {study.textContent}
                 </div>
               )}
+
+              {/* Dynamically resolved Scripture passage from Bible API when textContent is null */}
+              {!study.textContent && (
+                <>
+                  {isLoadingPassage && (
+                    <div className="mt-3.5 p-4 bg-white/70 rounded-xl border border-[var(--color-border)] flex items-center justify-center gap-2 text-xs text-[var(--color-text-secondary)]">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-[var(--color-primary)] border-t-transparent" />
+                      <span>Retrieving Scripture passage...</span>
+                    </div>
+                  )}
+
+                  {!isLoadingPassage && resolvedPassage && resolvedPassage.verses && resolvedPassage.verses.length > 0 && (
+                    <div className="mt-3.5 p-4 sm:p-5 bg-white rounded-xl border border-[var(--color-border)] shadow-2xs space-y-3" id="resolved-scripture-box">
+                      <div className="flex items-center justify-between pb-2 border-b border-[var(--color-border)]">
+                        <span className="text-xs font-bold text-[var(--color-primary)] font-sans tracking-wide">
+                          {resolvedPassage.reference}
+                        </span>
+                        <span className="text-[10px] font-bold text-[var(--color-text-secondary)] uppercase bg-[var(--color-background)] px-2 py-0.5 rounded border border-[var(--color-border)] font-sans">
+                          {resolvedPassage.versionId.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="font-serif text-base sm:text-lg leading-relaxed text-[var(--color-text-primary)]">
+                        {resolvedPassage.verses.map((v) => (
+                          <span key={v.number} className="inline mr-1.5">
+                            <sup className="text-xs font-bold text-[var(--color-primary)] mr-0.5 select-none font-sans">
+                              {v.number}
+                            </sup>
+                            <span>{v.text}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
 
-            {/* AIMS SECTION */}
-            {((study.aims && study.aims.length > 0) || Boolean(study.aim)) && (
+            {/* AIMS SECTION (Conditionally rendered) */}
+            {((study.aims && study.aims.length > 0) || (study.aim && study.aim.trim().length > 0)) && (
               <section className="mb-8" id="study-aims-section">
                 <h2 className="study-section-heading">
                   <Flag className="w-5 h-5 text-[#fabb53] fill-current" />
@@ -375,15 +474,18 @@ export default function BibleStudyReader({
               </section>
             )}
 
-            <div className="section-divider" />
-
-            {/* INTRODUCTION SECTION */}
-            <section className="mb-8" id="study-introduction-section">
-              <h2 className="study-section-heading">Introduction</h2>
-              <div className="space-y-4 font-serif text-lg leading-relaxed text-[var(--color-text-primary)]">
-                <p>{study.introduction}</p>
-              </div>
-            </section>
+            {/* INTRODUCTION SECTION (Conditionally rendered) */}
+            {study.introduction && study.introduction.trim().length > 0 && (
+              <>
+                <div className="section-divider" />
+                <section className="mb-8" id="study-introduction-section">
+                  <h2 className="study-section-heading">Introduction</h2>
+                  <div className="space-y-4 font-serif text-lg leading-relaxed text-[var(--color-text-primary)]">
+                    <p>{study.introduction}</p>
+                  </div>
+                </section>
+              </>
+            )}
 
             {/* LESSON SECTIONS (IF PRESENT) */}
             {study.sections && study.sections.length > 0 && (
@@ -417,8 +519,8 @@ export default function BibleStudyReader({
               </section>
             )}
 
-            {/* STUDY GUIDE SECTION (QUESTIONS + INTERACTIVE NOTES) */}
-            {((study.studyGuide && study.studyGuide.length > 0) || (Array.isArray(study.discussionQuestions) && study.discussionQuestions.length > 0)) && (
+            {/* STUDY GUIDE SECTION (Questions with Interactive Notes) */}
+            {study.studyGuide && study.studyGuide.length > 0 && (
               <section className="mb-8" id="study-guide-section">
                 <h2 className="study-section-heading">
                   <BookOpen className="w-5 h-5 text-[#fabb53] fill-current" />
@@ -426,15 +528,7 @@ export default function BibleStudyReader({
                 </h2>
 
                 <div className="space-y-4 mt-4">
-                  {((study.studyGuide && study.studyGuide.length > 0) 
-                    ? study.studyGuide 
-                    : (study.discussionQuestions || []).map((q, idx) => ({
-                        id: `q-${idx}`,
-                        number: idx + 1,
-                        question: q,
-                        scriptureRefs: textScripturesList
-                      }))
-                  ).map((item) => (
+                  {study.studyGuide.map((item) => (
                     <div key={item.id} className="study-question-card">
                       <div className="flex items-start gap-2">
                         <span className="study-question-number">
@@ -461,20 +555,44 @@ export default function BibleStudyReader({
               </section>
             )}
 
-            <div className="section-divider" />
+            {/* DISCUSSION QUESTIONS (Kept Separate from Study Guide) */}
+            {Array.isArray(study.discussionQuestions) && study.discussionQuestions.length > 0 && (
+              <section className="mb-8" id="study-discussion-questions-section">
+                <h2 className="study-section-heading">
+                  <MessageSquare className="w-5 h-5 text-[var(--color-primary)]" />
+                  <span>Discussion Questions</span>
+                </h2>
 
-            {/* CONCLUSION SECTION */}
-            {study.conclusion && (
-              <section className="mb-8" id="study-conclusion-section">
-                <h2 className="study-section-heading">Conclusion</h2>
-                <p className="font-serif text-lg leading-relaxed text-[var(--color-text-primary)]">
-                  {study.conclusion}
-                </p>
+                <div className="space-y-3 mt-4">
+                  {study.discussionQuestions.map((question, idx) => (
+                    <div key={`dq-${idx}`} className="p-4 bg-white rounded-xl border border-[var(--color-border)] shadow-2xs flex items-start gap-3">
+                      <span className="w-6 h-6 rounded-full bg-[var(--color-primary-tint)] text-[var(--color-primary)] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5">
+                        {idx + 1}
+                      </span>
+                      <p className="font-serif text-base sm:text-lg leading-relaxed text-[var(--color-text-primary)] flex-1">
+                        {question}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </section>
             )}
 
-            {/* FOOD FOR THOUGHT */}
-            {study.foodForThought && (
+            {/* CONCLUSION SECTION (Conditionally rendered) */}
+            {study.conclusion && study.conclusion.trim().length > 0 && (
+              <>
+                <div className="section-divider" />
+                <section className="mb-8" id="study-conclusion-section">
+                  <h2 className="study-section-heading">Conclusion</h2>
+                  <p className="font-serif text-lg leading-relaxed text-[var(--color-text-primary)]">
+                    {study.conclusion}
+                  </p>
+                </section>
+              </>
+            )}
+
+            {/* FOOD FOR THOUGHT (Conditionally rendered) */}
+            {study.foodForThought && study.foodForThought.trim().length > 0 && (
               <section className="study-food-for-thought" id="study-food-for-thought-section">
                 <h2 className="study-section-heading text-[var(--color-primary)] mb-2">
                   <UtensilsCrossed className="w-5 h-5 fill-current" />
@@ -486,7 +604,7 @@ export default function BibleStudyReader({
               </section>
             )}
 
-            {/* MEMORY VERSE */}
+            {/* MEMORY VERSE (Structured: Title, "Verse text", Reference - No em dashes) */}
             {study.memoryVerse && (Boolean(study.memoryVerse.reference) || Boolean(study.memoryVerse.text)) && (
               <section className="study-memory-verse-section" id="study-memory-verse-section">
                 <div className="flex items-center justify-between mb-2">
@@ -506,8 +624,7 @@ export default function BibleStudyReader({
                   </blockquote>
                 )}
                 {study.memoryVerse.reference && (
-                  <cite className="study-memory-verse-cite">
-                    —{' '}
+                  <cite className="study-memory-verse-cite not-italic block mt-2 text-sm font-semibold text-[var(--color-primary)] font-sans">
                     <BibleReferenceLink
                       reference={study.memoryVerse.reference}
                       variant="inline"
@@ -518,37 +635,38 @@ export default function BibleStudyReader({
               </section>
             )}
 
-            <div className="section-divider" />
-
-            {/* CLOSING PRAYER */}
+            {/* CLOSING PRAYER & PRAYER POINTS */}
             {(Boolean(study.prayerText) || (Array.isArray(study.prayerPoints) && study.prayerPoints.length > 0)) && (
-              <section className="mb-12 text-center" id="study-prayer-section">
-                <h2 className="study-section-heading justify-center mb-4">
-                  <HeartHandshake className="w-5 h-5 text-[var(--color-primary)]" />
-                  <span>Closing Prayer</span>
-                </h2>
+              <>
+                <div className="section-divider" />
+                <section className="mb-12 text-center" id="study-prayer-section">
+                  <h2 className="study-section-heading justify-center mb-4">
+                    <HeartHandshake className="w-5 h-5 text-[var(--color-primary)]" />
+                    <span>Closing Prayer</span>
+                  </h2>
 
-                <div className="study-prayer-card">
-                  {study.prayerText && (
-                    <p className="font-serif italic text-lg text-[var(--color-text-primary)] leading-relaxed">
-                      {study.prayerText}
-                    </p>
-                  )}
-                  {Array.isArray(study.prayerPoints) && study.prayerPoints.length > 0 && (
-                    <div className={`space-y-2.5 text-left ${study.prayerText ? 'mt-4 pt-3 border-t border-[var(--color-border)]' : ''}`}>
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-primary)] font-sans">
-                        Prayer Points
-                      </h4>
-                      {study.prayerPoints.map((p, idx) => (
-                        <p key={idx} className="font-serif italic text-base text-[var(--color-text-primary)] leading-relaxed flex items-start gap-2">
-                          <span className="text-[var(--color-primary)] font-bold">•</span>
-                          <span>{p}</span>
-                        </p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </section>
+                  <div className="study-prayer-card">
+                    {study.prayerText && (
+                      <p className="font-serif italic text-lg text-[var(--color-text-primary)] leading-relaxed">
+                        {study.prayerText}
+                      </p>
+                    )}
+                    {Array.isArray(study.prayerPoints) && study.prayerPoints.length > 0 && (
+                      <div className={`space-y-2.5 text-left ${study.prayerText ? 'mt-4 pt-3 border-t border-[var(--color-border)]' : ''}`}>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-[var(--color-primary)] font-sans">
+                          Prayer Points
+                        </h4>
+                        {study.prayerPoints.map((p, idx) => (
+                          <p key={idx} className="font-serif italic text-base text-[var(--color-text-primary)] leading-relaxed flex items-start gap-2">
+                            <span className="text-[var(--color-primary)] font-bold">•</span>
+                            <span>{p}</span>
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </>
             )}
 
           </article>

@@ -17,7 +17,7 @@ export default function EventMapModal({ isOpen, event, onClose }: EventMapModalP
   if (!isOpen || !event) return null;
 
   const mapQueryUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-    `${event.venue}, ${event.address}`
+    event.location || event.venue || 'FUTA Campus, Akure'
   )}`;
 
   return (
@@ -66,8 +66,8 @@ export default function EventMapModal({ isOpen, event, onClose }: EventMapModalP
             <div className="z-10 bg-[var(--color-surface)] p-3 rounded-2xl border border-[var(--color-border)] shadow-md flex items-center gap-2 max-w-xs">
               <MapPin className="w-5 h-5 text-[var(--color-primary)] shrink-0 animate-bounce" />
               <div className="text-left">
-                <div className="text-xs font-bold text-[var(--color-text-primary)] truncate">{event.venue}</div>
-                <div className="text-[10px] text-[var(--color-text-secondary)]">{event.address}</div>
+                <div className="text-xs font-bold text-[var(--color-text-primary)] truncate">{event.location || event.venue}</div>
+                <div className="text-[10px] text-[var(--color-text-secondary)]">{event.address || 'FUTA Campus, Akure'}</div>
               </div>
             </div>
             <div className="z-10 mt-3 text-[11px] font-semibold text-[var(--color-primary)] bg-white/90 px-3 py-1 rounded-full border border-[var(--color-border)]">

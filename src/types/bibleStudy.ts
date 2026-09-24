@@ -35,10 +35,10 @@ export interface BibleStudyItem {
   topic?: string;
   theme?: string;
   annualTheme?: string;
-  subTheme: string;
+  subTheme?: string;
   date: string;
-  scheduledDate?: string;
-  studyDate?: string;
+  scheduledDate?: string | null;
+  studyDate?: string | null;
   keyScripture: string;
   textRef?: string;
   textScriptures?: string[];
@@ -64,9 +64,9 @@ export interface BibleStudyItem {
   isCurrent: boolean;
   isPublished: boolean;
   publicationStatus?: 'draft' | 'published';
-  seriesId?: string;
-  seriesTitle?: string;
-  academicSessionId?: string;
+  seriesId?: string | null;
+  seriesTitle?: string | null;
+  academicSessionId?: string | null;
 }
 
 export interface BibleStudySeriesLessonPayload {

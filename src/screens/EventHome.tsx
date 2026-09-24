@@ -3,19 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, 
-  Clock, 
-  MapPin, 
   Search, 
   X, 
-  Bell, 
-  Sparkles,
-  ArrowRight
 } from 'lucide-react';
-import { EventItem } from '../types';
+import { EventItem, EventCategory } from '../types';
 import { eventsService } from '../services/events/events.service';
 import { remindersService } from '../services/reminders/reminders.service';
 import { EVENTS_CONTENT } from '../content/events-content';
@@ -42,38 +37,82 @@ export default function EventHome({
   const devState = useDevState();
 
   const [events, setEvents] = useState<EventItem[]>([]);
+  const [featuredEvent, setFeaturedEvent] = useState<EventItem | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  const [activeTab, setActiveTab] = useState<string>('Upcoming');
+  const [activeTab, setActiveTab] = useState<'Upcoming' | 'Past Events'>('Upcoming');
 
   const [localRemindedIds, setLocalRemindedIds] = useState<string[]>([]);
   const [selectedReminderEvent, setSelectedReminderEvent] = useState<EventItem | null>(null);
 
-  // Load events via service
+  // Load events and featured event via authoritative service endpoints
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
 
-    const filter = activeTab === 'Past Events' ? 'past' : undefined;
-
-    eventsService.getEvents({
-      category: selectedCategory as any,
-      filter: filter,
-      searchQuery: searchQuery,
-      isOfflineSimulated: devState.isOfflineSimulated,
-    }).then((data) => {
-      if (isMounted) {
+    async function loadData() {
+      try {
         if (devState.isEmptyStateSimulated) {
-          setEvents([]);
-        } else {
-          setEvents(data);
+          if (isMounted) {
+            setEvents([]);
+            setFeaturedEvent(null);
+            setIsLoading(false);
+          }
+          return;
         }
-        setIsLoading(false);
+
+        const categoryParam = selectedCategory !== 'All' ? (selectedCategory as EventCategory) : undefined;
+
+        if (activeTab === 'Past Events') {
+          const past = await eventsService.getPastEvents({
+            category: categoryParam,
+            searchQuery: searchQuery,
+            isOfflineSimulated: devState.isOfflineSimulated,
+          });
+          if (isMounted) {
+            setEvents(past);
+            setFeaturedEvent(null);
+          }
+        } else {
+          // In Upcoming mode: fetch upcoming list AND authoritative featured event
+          const [upcomingRes, featuredRes] = await Promise.allSettled([
+            eventsService.getUpcomingEvents({
+              category: categoryParam,
+              searchQuery: searchQuery,
+              isOfflineSimulated: devState.isOfflineSimulated,
+            }),
+            // Authoritative GET /api/events/featured
+            eventsService.getFeaturedEvent(),
+          ]);
+
+          if (isMounted) {
+            if (upcomingRes.status === 'fulfilled') {
+              setEvents(upcomingRes.value);
+            } else {
+              setEvents([]);
+            }
+
+            if (featuredRes.status === 'fulfilled') {
+              setFeaturedEvent(featuredRes.value);
+            } else {
+              setFeaturedEvent(null);
+            }
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          setEvents([]);
+          setFeaturedEvent(null);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
-    }).catch(() => {
-      if (isMounted) setIsLoading(false);
-    });
+    }
+
+    loadData();
 
     return () => {
       isMounted = false;
@@ -87,16 +126,13 @@ export default function EventHome({
 
   const effectiveRemindedIds = externalRemindedIds || localRemindedIds;
 
-  // Featured / Next event
-  const featuredEvent = useMemo(() => {
-    if (activeTab === 'Past Events' || events.length === 0) return undefined;
-    return events.find(e => e.isNextEvent || e.isToday) || events[0];
-  }, [events, activeTab]);
-
-  const timelineEvents = useMemo(() => {
-    if (!featuredEvent) return events;
+  // Timeline events: if a featured event is displayed in Hero, don't duplicate it in the list below
+  const timelineEvents = React.useMemo(() => {
+    if (!featuredEvent || activeTab === 'Past Events') {
+      return events;
+    }
     return events.filter(e => e.id !== featuredEvent.id);
-  }, [events, featuredEvent]);
+  }, [events, featuredEvent, activeTab]);
 
   const handleOpenReminderModal = (event: EventItem) => {
     setSelectedReminderEvent(event);
@@ -123,6 +159,14 @@ export default function EventHome({
     }
     setSelectedReminderEvent(null);
   };
+
+  // Determine appropriate empty state text
+  const isFiltered = searchQuery.trim() !== '' || selectedCategory !== 'All';
+  const emptyStateConfig = isFiltered
+    ? EVENTS_CONTENT.emptyState.filtered
+    : activeTab === 'Past Events'
+    ? EVENTS_CONTENT.emptyState.past
+    : EVENTS_CONTENT.emptyState.upcoming;
 
   return (
     <div className="events-page select-none" id="events-home-screen">
@@ -168,7 +212,7 @@ export default function EventHome({
           </span>
           <input
             type="text"
-            placeholder="Search by event title, speaker, or venue..."
+            placeholder="Search by gathering title, speaker, theme, or location..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input-box pl-10 pr-9 text-xs sm:text-sm"
@@ -177,7 +221,7 @@ export default function EventHome({
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-[var(--color-text-secondary)] hover:text-[var(--color-primary)]"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-[var(--color-text-secondary)] hover:text-[var(--color-primary)] cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -193,7 +237,7 @@ export default function EventHome({
               className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                 selectedCategory === cat
                   ? 'bg-[var(--color-primary)] text-white shadow-xs'
-                  : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-slate-300'
+                  : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-text-secondary)] hover:border-stone-300'
               }`}
             >
               {cat}
@@ -201,19 +245,19 @@ export default function EventHome({
           ))}
         </div>
 
-        {/* Horizon Tabs */}
+        {/* Horizon Tabs (Upcoming vs Past Events) */}
         <div className="flex border-b border-[var(--color-border)]">
-          {['Upcoming', 'This Week', 'This Month', 'Past Events'].map((tab) => (
+          {(['Upcoming', 'Past Events'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${
+              className={`px-4 py-2 text-xs sm:text-sm font-bold border-b-2 transition-colors whitespace-nowrap cursor-pointer ${
                 activeTab === tab
                   ? 'border-[var(--color-primary)] text-[var(--color-primary)]'
                   : 'border-transparent text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)]'
               }`}
             >
-              {tab}
+              {tab === 'Upcoming' ? EVENTS_CONTENT.tabs.upcoming : EVENTS_CONTENT.tabs.past}
             </button>
           ))}
         </div>
@@ -222,21 +266,21 @@ export default function EventHome({
       {/* Main Events Body */}
       {isLoading ? (
         <LoadingState message="Fetching events schedule..." />
-      ) : events.length === 0 ? (
+      ) : events.length === 0 && !featuredEvent ? (
         <EmptyState
-          title={EVENTS_CONTENT.emptyState.title}
-          description={EVENTS_CONTENT.emptyState.description}
+          title={emptyStateConfig.title}
+          description={emptyStateConfig.description}
           onReset={() => {
             setSearchQuery('');
             setSelectedCategory('All');
             setActiveTab('Upcoming');
           }}
-          resetText={EVENTS_CONTENT.emptyState.resetButtonText}
+          resetText="Reset Filters"
         />
       ) : (
         <div className="space-y-6">
-          {/* Featured Hero Event */}
-          {featuredEvent && (
+          {/* Authoritative Featured Hero Gathering (only if real GET /api/events/featured exists) */}
+          {activeTab === 'Upcoming' && featuredEvent && (
             <EventHero
               event={featuredEvent}
               onSelect={(evt) => navigate(`/events/${evt.id}`)}
@@ -246,20 +290,32 @@ export default function EventHome({
           )}
 
           {/* Timeline Events List */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
-              {activeTab === 'Past Events' ? 'Archive of Events' : 'Upcoming Gatherings'} ({timelineEvents.length})
-            </h3>
-            {timelineEvents.map((evt) => (
-              <EventCard
-                key={evt.id}
-                event={evt}
-                onSelect={(selected) => navigate(`/events/${selected.id}`)}
-                onToggleReminder={handleOpenReminderModal}
-                isReminded={effectiveRemindedIds.includes(evt.id)}
-              />
-            ))}
-          </div>
+          {timelineEvents.length > 0 ? (
+            <div className="space-y-3">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] mb-2">
+                {activeTab === 'Past Events' ? 'Past Gatherings' : 'All Upcoming Gatherings'} ({timelineEvents.length})
+              </h3>
+              {timelineEvents.map((evt) => (
+                <EventCard
+                  key={evt.id}
+                  event={evt}
+                  onSelect={(selected) => navigate(`/events/${selected.id}`)}
+                  onToggleReminder={handleOpenReminderModal}
+                  isReminded={effectiveRemindedIds.includes(evt.id)}
+                />
+              ))}
+            </div>
+          ) : !featuredEvent ? (
+            <EmptyState
+              title={emptyStateConfig.title}
+              description={emptyStateConfig.description}
+              onReset={() => {
+                setSearchQuery('');
+                setSelectedCategory('All');
+              }}
+              resetText="Reset Filters"
+            />
+          ) : null}
         </div>
       )}
 

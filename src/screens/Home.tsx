@@ -20,6 +20,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { UserProfile, BibleStudyItem, Announcement } from '../types';
+import { formatEventTime } from '../utils/eventDate';
 import { EventItem } from '../types/event';
 import { bibleStudyService } from '../services/bibleStudy/bibleStudy.service';
 import { eventsService } from '../services/events/events.service';
@@ -321,11 +322,11 @@ export default function Home({ currentUser }: HomeProps) {
               <div className="flex items-center gap-3 pt-1 text-[11px] text-[#52525B]">
                 <span className="flex items-center gap-1">
                   <Clock className="w-3 h-3 text-[#5B0617]" />
-                  <span>{upcomingEvent.startTime}</span>
+                  <span>{formatEventTime(upcomingEvent.startTime, upcomingEvent.endTime)}</span>
                 </span>
                 <span className="flex items-center gap-1">
                   <MapPin className="w-3 h-3 text-[#5B0617]" />
-                  <span>{upcomingEvent.venue || upcomingEvent.address}</span>
+                  <span>{upcomingEvent.location || upcomingEvent.venue}</span>
                 </span>
               </div>
             </div>

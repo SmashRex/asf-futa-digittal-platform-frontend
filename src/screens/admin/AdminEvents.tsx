@@ -5,23 +5,29 @@
 
 import React, { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { AdminContextType } from './AdminLayout';
-import { StatusBadge } from '../../components/admin/StatusBadge';
-import { eventsService } from '../../services/events/events.service';
-import { EventItem, EventCategory, EventMode } from '../../types/event';
 import { 
   Calendar, 
-  Plus, 
   MapPin, 
-  Clock, 
+  Plus, 
+  RefreshCw, 
+  Ban, 
   User, 
-  Sparkles, 
-  X,
+  X, 
   AlertCircle,
-  Ban,
-  RefreshCw,
-  Eye
+  Clock,
+  Edit2
 } from 'lucide-react';
+import { EventItem, EventCategory, EventMode } from '../../types/event';
+import { eventsService } from '../../services/events/events.service';
+import { AdminContextType } from './AdminLayout';
+import { StatusBadge } from '../../components/admin/StatusBadge';
+import { 
+  formatEventDate, 
+  formatEventTime, 
+  getLagosDateInput, 
+  getLagosTimeInput, 
+  buildLagosIso 
+} from '../../utils/eventDate';
 
 const EVENT_CATEGORIES: EventCategory[] = [
   'Bible Study',
@@ -55,19 +61,25 @@ export const AdminEvents: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<'all' | 'upcoming' | 'past'>('upcoming');
-  const [isModalOpen, setIsModalOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // New Event Form State
+  // Modals state
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
+
+  // Form State
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState<EventCategory>('Special Program');
-  const [startDate, setStartDate] = useState('');
-  const [startTime, setStartTime] = useState('5:00 PM');
-  const [endTime, setEndTime] = useState('7:00 PM');
-  const [venue, setVenue] = useState('ASF Fellowship Hall, FUTA');
+  const [category, setCategory] = useState<EventCategory>('Fellowship');
+  const [eventDate, setEventDate] = useState(() => getLagosDateInput());
+  const [startTime, setStartTime] = useState('17:00');
+  const [endTime, setEndTime] = useState('19:00');
+  const [location, setLocation] = useState('Fellowship Sanctuary, FUTA');
+  const [mode, setMode] = useState<EventMode>('In-Person');
+  const [theme, setTheme] = useState('');
+  const [description, setDescription] = useState('');
   const [speaker, setSpeaker] = useState('');
   const [speakerRole, setSpeakerRole] = useState('');
-  const [mode, setMode] = useState<EventMode>('Hybrid');
+  const [imageUrl, setImageUrl] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadEvents = async (filter: 'all' | 'upcoming' | 'past' = activeFilter) => {
@@ -80,7 +92,6 @@ export const AdminEvents: React.FC = () => {
       );
       setEvents(data);
     } catch (err: any) {
-      console.warn('[AdminEvents] Failed to load events:', err);
       setError(err?.message || 'Failed to load events.');
     } finally {
       setIsLoading(false);
@@ -91,49 +102,118 @@ export const AdminEvents: React.FC = () => {
     loadEvents(activeFilter);
   }, [activeFilter]);
 
-  const handleCreateEvent = async (e: React.FormEvent) => {
+  const resetForm = () => {
+    setTitle('');
+    setCategory('Fellowship');
+    setEventDate(getLagosDateInput());
+    setStartTime('17:00');
+    setEndTime('19:00');
+    setLocation('Fellowship Sanctuary, FUTA');
+    setMode('In-Person');
+    setTheme('');
+    setDescription('');
+    setSpeaker('');
+    setSpeakerRole('');
+    setImageUrl('');
+    setEditingEvent(null);
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setIsCreateModalOpen(true);
+  };
+
+  const openEditModal = (ev: EventItem) => {
+    setEditingEvent(ev);
+    setTitle(ev.title);
+    setCategory(ev.category);
+    setLocation(ev.location || ev.venue || 'Fellowship Sanctuary, FUTA');
+    setMode(ev.mode);
+    setTheme(ev.theme || '');
+    setDescription(ev.description || '');
+    setSpeaker(ev.speaker || '');
+    setSpeakerRole(ev.speakerRole || '');
+    setImageUrl(ev.imageUrl || ev.image || '');
+
+    // Parse existing start & end time strictly in Africa/Lagos
+    if (ev.startTime) {
+      setEventDate(getLagosDateInput(ev.startTime));
+      setStartTime(getLagosTimeInput(ev.startTime));
+    }
+    if (ev.endTime) {
+      setEndTime(getLagosTimeInput(ev.endTime));
+    } else {
+      setEndTime('');
+    }
+
+    setIsCreateModalOpen(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !canManageEvents) return;
+    if (!title.trim() || !location.trim() || !eventDate || !startTime || !canManageEvents) return;
 
     setIsSubmitting(true);
     setActionError(null);
+
     try {
-      const created = await eventsService.createEvent({
-        title,
-        category,
-        startDate: startDate || 'Upcoming 2026',
-        startTime,
-        endTime,
-        venue,
-        speaker: speaker || undefined,
-        speakerRole: speakerRole || undefined,
-        mode,
-        month: 'OCT',
-        dayNumber: '25',
-        status: 'Upcoming'
-      });
-      setEvents(prev => [created, ...prev]);
-      setIsModalOpen(false);
-      setTitle('');
-      setSpeaker('');
-      setSpeakerRole('');
-      setStartDate('');
+      // Build authoritative timezone-aware ISO string for Africa/Lagos (WAT, UTC+1)
+      const startIso = buildLagosIso(eventDate, startTime);
+      const endIso = endTime ? buildLagosIso(eventDate, endTime) : null;
+
+      if (editingEvent) {
+        // PUT /api/events/:id
+        const updated = await eventsService.updateEvent(editingEvent.id, {
+          title: title.trim(),
+          category,
+          location: location.trim(),
+          startTime: startIso,
+          endTime: endIso,
+          mode,
+          theme: theme.trim() || null,
+          description: description.trim() || null,
+          speaker: speaker.trim() || null,
+          speakerRole: speakerRole.trim() || null,
+          imageUrl: imageUrl.trim() || null,
+        });
+
+        setEvents(prev => prev.map(item => item.id === updated.id ? updated : item));
+      } else {
+        // POST /api/events
+        const created = await eventsService.createEvent({
+          title: title.trim(),
+          location: location.trim(),
+          startTime: startIso,
+          endTime: endIso,
+          category,
+          mode,
+          theme: theme.trim() || null,
+          description: description.trim() || null,
+          speaker: speaker.trim() || null,
+          speakerRole: speakerRole.trim() || null,
+          imageUrl: imageUrl.trim() || null,
+        });
+
+        setEvents(prev => [created, ...prev]);
+      }
+
+      setIsCreateModalOpen(false);
+      resetForm();
     } catch (err: any) {
-      console.error('[AdminEvents] Failed to create event:', err);
-      setActionError(err?.message || 'Failed to create event.');
+      setActionError(err?.message || 'Failed to save event.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // PATCH /api/events/:id/cancel
   const handleCancelEvent = async (id: string) => {
     if (!canManageEvents) return;
     setActionError(null);
     try {
-      const cancelled = await eventsService.cancelEvent(id);
+      await eventsService.cancelEvent(id);
       setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status: 'Cancelled' } : ev));
     } catch (err: any) {
-      console.error('[AdminEvents] Failed to cancel event:', err);
       setActionError(err?.message || 'Failed to cancel event.');
     }
   };
@@ -146,98 +226,124 @@ export const AdminEvents: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-serif font-bold text-[#18181B] tracking-tight">
-              Events & Calendar Management
+              Events & Semester Schedule
             </h1>
-            {isPresident && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-700 border border-stone-200">
-                <Eye className="w-3 h-3 text-stone-500" />
-                View Only
-              </span>
-            )}
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#5B0617]/10 text-[#5B0617]">
+              {events.length} Gatherings
+            </span>
           </div>
-          <p className="text-xs sm:text-sm text-[#52525B] mt-0.5">
-            Schedule fellowship services, revival nights, and retreat gatherings across the semester.
+          <p className="text-xs text-[#52525B] mt-1">
+            Authoritative scheduling and management for ASF fellowship programs.
           </p>
         </div>
 
-        {canManageEvents && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setIsModalOpen(true)}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#5B0617] hover:bg-[#7A1F2B] text-white text-xs sm:text-sm font-semibold transition-all shadow-sm shrink-0"
+            onClick={() => loadEvents(activeFilter)}
+            disabled={isLoading}
+            className="p-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-[#52525B] transition-colors"
+            title="Refresh Events"
           >
-            <Plus className="w-4 h-4" />
-            <span>Create New Event</span>
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
-        )}
+
+          {canManageEvents && (
+            <button
+              onClick={openCreateModal}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#5B0617] text-white text-xs font-bold hover:bg-[#480512] transition-colors shadow-xs"
+              id="admin-create-event-btn"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create Event</span>
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Role Notice */}
+      {isPresident && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+          <span>President role has review-only oversight. Modification rights belong to Publicity and General Secretary.</span>
+        </div>
+      )}
 
       {/* Action Error Banner */}
       {actionError && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm animate-fade-in">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{actionError}</span>
-          </div>
-          <button onClick={() => setActionError(null)} className="text-rose-700 hover:text-rose-900 font-bold">
-            &times;
+        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between">
+          <span>{actionError}</span>
+          <button onClick={() => setActionError(null)} className="text-rose-600 hover:text-rose-900">
+            <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
-      {/* Filter Tabs */}
+      {/* Filtering Horizon Bar */}
       <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
         <div className="flex items-center gap-2">
-          {(['upcoming', 'past', 'all'] as const).map((filter) => (
-            <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold capitalize transition-all ${
-                activeFilter === filter
-                  ? 'bg-[#5B0617] text-white shadow-xs'
-                  : 'text-[#52525B] hover:text-[#18181B] hover:bg-stone-100'
-              }`}
-            >
-              {filter === 'all' ? 'All Events' : `${filter} Events`}
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => loadEvents(activeFilter)}
-          disabled={isLoading}
-          className="p-1.5 rounded-lg text-[#52525B] hover:bg-stone-100 transition-colors"
-          title="Refresh Events"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
-
-      {/* Main Events List */}
-      {isLoading ? (
-        <div className="py-16 text-center text-xs text-[#52525B] bg-white rounded-2xl border border-[#E4E4E7]">
-          <RefreshCw className="w-6 h-6 text-[#5B0617] animate-spin mx-auto mb-2" />
-          <p>Loading events timetable...</p>
-        </div>
-      ) : error ? (
-        <div className="py-12 text-center text-xs bg-rose-50 rounded-2xl border border-rose-200 text-rose-800 p-6 space-y-3">
-          <AlertCircle className="w-8 h-8 text-rose-600 mx-auto" />
-          <p className="font-semibold">{error}</p>
           <button
-            onClick={() => loadEvents(activeFilter)}
-            className="px-3 py-1.5 bg-rose-700 text-white rounded-xl font-bold hover:bg-rose-800"
+            onClick={() => setActiveFilter('upcoming')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              activeFilter === 'upcoming' 
+                ? 'bg-[#5B0617] text-white' 
+                : 'text-[#52525B] hover:bg-stone-100'
+            }`}
           >
-            Retry Loading
+            Upcoming Gatherings
+          </button>
+          <button
+            onClick={() => setActiveFilter('past')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              activeFilter === 'past' 
+                ? 'bg-[#5B0617] text-white' 
+                : 'text-[#52525B] hover:bg-stone-100'
+            }`}
+          >
+            Past Gatherings
+          </button>
+          <button
+            onClick={() => setActiveFilter('all')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+              activeFilter === 'all' 
+                ? 'bg-[#5B0617] text-white' 
+                : 'text-[#52525B] hover:bg-stone-100'
+            }`}
+          >
+            All Gatherings
           </button>
         </div>
+
+        <span className="text-[11px] text-[#52525B]">
+          Timezone: Africa/Lagos (WAT)
+        </span>
+      </div>
+
+      {/* Events Grid / List */}
+      {isLoading ? (
+        <div className="py-12 text-center text-xs text-[#52525B]">
+          Loading fellowship gatherings...
+        </div>
+      ) : error ? (
+        <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs text-center">
+          {error}
+        </div>
       ) : events.length === 0 ? (
-        <div className="py-16 text-center text-xs text-[#71717A] bg-white rounded-2xl border border-[#E4E4E7] space-y-2">
-          <Calendar className="w-8 h-8 text-stone-300 mx-auto" />
-          <p className="font-semibold text-stone-700">No events found for this filter</p>
-          <p className="text-[11px] text-stone-500">There are no calendar entries matching the selected criteria.</p>
+        <div className="p-12 text-center bg-white rounded-2xl border border-dashed border-[#E4E4E7] space-y-2">
+          <Calendar className="w-8 h-8 text-[#52525B] mx-auto" />
+          <h3 className="font-serif font-bold text-sm text-[#18181B]">
+            {activeFilter === 'past' ? 'No past events to show yet.' : 'No upcoming events have been published yet.'}
+          </h3>
+          <p className="text-xs text-[#52525B] max-w-sm mx-auto">
+            {canManageEvents ? 'Click "Create Event" above to schedule a new fellowship gathering.' : 'Check back later for newly scheduled programs.'}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {events.map((ev) => {
             const isCancelled = ev.status === 'Cancelled';
+            const displayDate = formatEventDate(ev.startTime, true);
+            const displayTime = formatEventTime(ev.startTime, ev.endTime);
+            const locationStr = ev.location || ev.venue || 'Fellowship Sanctuary, FUTA';
 
             return (
               <div 
@@ -251,26 +357,36 @@ export const AdminEvents: React.FC = () => {
                     <span className="text-[10px] font-bold uppercase tracking-wider text-[#5B0617] bg-[#5B0617]/10 px-2 py-0.5 rounded">
                       {ev.category}
                     </span>
-                    <StatusBadge status={ev.status || 'Upcoming'} size="sm" />
+                    <StatusBadge status={ev.status} size="sm" />
                   </div>
 
                   <h3 className={`font-serif font-bold text-base leading-tight ${isCancelled ? 'line-through text-[#71717A]' : 'text-[#18181B]'}`}>
                     {ev.title}
                   </h3>
 
+                  {ev.theme && (
+                    <p className="text-[11px] font-medium text-[#5B0617] italic line-clamp-1">
+                      Theme: "{ev.theme}"
+                    </p>
+                  )}
+
                   <div className="space-y-1.5 text-xs text-[#52525B] pt-2 border-t border-[#E4E4E7]">
                     <div className="flex items-center gap-2">
-                      <Calendar className="w-3.5 h-3.5 text-[#5B0617]" />
-                      <span>{ev.startDate} ({ev.startTime} - {ev.endTime})</span>
+                      <Calendar className="w-3.5 h-3.5 text-[#5B0617] shrink-0" />
+                      <span className="truncate">{displayDate}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <MapPin className="w-3.5 h-3.5 text-[#805600]" />
-                      <span>{ev.venue} • <strong className="text-[#18181B]">{ev.mode}</strong></span>
+                      <Clock className="w-3.5 h-3.5 text-[#5B0617] shrink-0" />
+                      <span className="truncate">{displayTime}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-3.5 h-3.5 text-[#805600] shrink-0" />
+                      <span className="truncate">{locationStr} • <strong className="text-[#18181B]">{ev.mode}</strong></span>
                     </div>
                     {ev.speaker && (
                       <div className="flex items-center gap-2">
-                        <User className="w-3.5 h-3.5 text-blue-700" />
-                        <span>{ev.speaker} {ev.speakerRole ? `(${ev.speakerRole})` : ''}</span>
+                        <User className="w-3.5 h-3.5 text-blue-700 shrink-0" />
+                        <span className="truncate">{ev.speaker} {ev.speakerRole ? `(${ev.speakerRole})` : ''}</span>
                       </div>
                     )}
                   </div>
@@ -281,16 +397,29 @@ export const AdminEvents: React.FC = () => {
                     {isCancelled ? 'Event Cancelled' : 'Active Calendar Event'}
                   </span>
 
-                  {canManageEvents && !isCancelled && (
-                    <button
-                      onClick={() => handleCancelEvent(ev.id)}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 text-[11px] font-semibold transition-colors"
-                      title="Cancel Event (Soft Cancellation)"
-                    >
-                      <Ban className="w-3.5 h-3.5" />
-                      <span>Cancel</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-1">
+                    {canManageEvents && (
+                      <button
+                        onClick={() => openEditModal(ev)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-stone-700 hover:bg-stone-100 text-[11px] font-semibold transition-colors"
+                        title="Edit Gathering"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Edit</span>
+                      </button>
+                    )}
+
+                    {canManageEvents && !isCancelled && (
+                      <button
+                        onClick={() => handleCancelEvent(ev.id)}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 text-[11px] font-semibold transition-colors"
+                        title="Cancel Event (Soft Cancellation)"
+                      >
+                        <Ban className="w-3.5 h-3.5" />
+                        <span>Cancel</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -298,21 +427,26 @@ export const AdminEvents: React.FC = () => {
         </div>
       )}
 
-      {/* CREATE EVENT MODAL */}
-      {isModalOpen && canManageEvents && (
+      {/* CREATE / EDIT EVENT MODAL */}
+      {isCreateModalOpen && canManageEvents && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#E4E4E7] shadow-2xl p-6 space-y-4 animate-scale-up">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-[#E4E4E7] shadow-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between border-b border-[#E4E4E7] pb-3">
-              <h3 className="font-serif font-bold text-lg text-[#18181B]">Add Fellowship Event</h3>
-              <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-lg text-[#52525B] hover:bg-stone-100">
+              <h3 className="font-serif font-bold text-lg text-[#18181B]">
+                {editingEvent ? 'Edit Fellowship Gathering' : 'Schedule Fellowship Gathering'}
+              </h3>
+              <button 
+                onClick={() => { setIsCreateModalOpen(false); resetForm(); }} 
+                className="p-1 rounded-lg text-[#52525B] hover:bg-stone-100"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateEvent} className="space-y-3 text-xs">
+            <form onSubmit={handleSubmit} className="space-y-3 text-xs">
               <div className="space-y-1">
-                <label className="font-semibold text-[#18181B]">Event Title *</label>
+                <label className="font-semibold text-[#18181B]">Gathering Title *</label>
                 <input
                   type="text"
                   required
@@ -353,19 +487,20 @@ export const AdminEvents: React.FC = () => {
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
-                  <label className="font-semibold text-[#18181B]">Date</label>
+                  <label className="font-semibold text-[#18181B]">Date *</label>
                   <input
-                    type="text"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    placeholder="e.g. Mar 15, 2026"
+                    type="date"
+                    required
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
                     className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold text-[#18181B]">Start Time</label>
+                  <label className="font-semibold text-[#18181B]">Start Time *</label>
                   <input
-                    type="text"
+                    type="time"
+                    required
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
                     className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
@@ -374,7 +509,7 @@ export const AdminEvents: React.FC = () => {
                 <div className="space-y-1">
                   <label className="font-semibold text-[#18181B]">End Time</label>
                   <input
-                    type="text"
+                    type="time"
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
                     className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
@@ -383,11 +518,35 @@ export const AdminEvents: React.FC = () => {
               </div>
 
               <div className="space-y-1">
-                <label className="font-semibold text-[#18181B]">Venue Location</label>
+                <label className="font-semibold text-[#18181B]">Location / Venue *</label>
                 <input
                   type="text"
-                  value={venue}
-                  onChange={(e) => setVenue(e.target.value)}
+                  required
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="e.g. Fellowship Sanctuary, FUTA South Gate"
+                  className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-[#18181B]">Theme</label>
+                <input
+                  type="text"
+                  value={theme}
+                  onChange={(e) => setTheme(e.target.value)}
+                  placeholder="e.g. Standing Firm in Grace"
+                  className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-semibold text-[#18181B]">Description</label>
+                <textarea
+                  rows={2}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Overview of the program, expectations, and instructions..."
                   className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
                 />
               </div>
@@ -399,37 +558,48 @@ export const AdminEvents: React.FC = () => {
                     type="text"
                     value={speaker}
                     onChange={(e) => setSpeaker(e.target.value)}
-                    placeholder="e.g. Venerable Dr. Adediran"
+                    placeholder="e.g. Pastor Sarah Jenkins"
                     className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="font-semibold text-[#18181B]">Speaker Title / Role</label>
+                  <label className="font-semibold text-[#18181B]">Speaker Role / Title</label>
                   <input
                     type="text"
                     value={speakerRole}
                     onChange={(e) => setSpeakerRole(e.target.value)}
-                    placeholder="e.g. Chaplain"
+                    placeholder="e.g. Visiting Chaplain"
                     className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
                   />
                 </div>
               </div>
 
+              <div className="space-y-1">
+                <label className="font-semibold text-[#18181B]">Header Image URL</label>
+                <input
+                  type="url"
+                  value={imageUrl}
+                  onChange={(e) => setImageUrl(e.target.value)}
+                  placeholder="https://images.unsplash.com/..."
+                  className="w-full p-2 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7]"
+                />
+              </div>
+
               <div className="pt-3 border-t border-[#E4E4E7] flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => { setIsCreateModalOpen(false); resetForm(); }}
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl bg-stone-100 text-[#18181B] font-semibold"
+                  className="px-4 py-2 rounded-xl bg-stone-100 text-[#18181B] font-semibold cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-4 py-2 rounded-xl bg-[#5B0617] text-white font-bold hover:bg-[#480512] transition-colors"
+                  className="px-4 py-2 rounded-xl bg-[#5B0617] text-white font-bold hover:bg-[#480512] transition-colors cursor-pointer"
                 >
-                  {isSubmitting ? 'Creating...' : 'Create Event'}
+                  {isSubmitting ? (editingEvent ? 'Updating...' : 'Creating...') : (editingEvent ? 'Update Gathering' : 'Schedule Gathering')}
                 </button>
               </div>
 

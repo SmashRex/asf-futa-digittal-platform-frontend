@@ -5,34 +5,44 @@
 
 export const EVENTS_CONTENT = {
   header: {
-    badge: "FUTA Chapter Schedule",
+    badge: "Semester Schedule",
     title: "Gatherings & Events",
-    description: "Join us for worship, Bible studies, prayer meetings, and special fellowship events.",
+    description: "Join us for worship, Bible studies, prayer meetings, and special fellowship events across the semester.",
     scheduleButtonText: "Semester Schedule",
   },
   tabs: {
     all: "All Events",
     upcoming: "Upcoming",
-    today: "Happening Today",
     past: "Past Events",
   },
   categories: [
     'All',
-    'Worship',
-    'Service',
     'Bible Study',
     'Prayer',
-    'Fellowship',
+    'Worship',
     'Outreach',
-    'Seminar',
-    'Conference',
-    'Youth',
-    'Special Program'
+    'Fellowship',
+    'Special Program',
+    'Administrative'
   ],
   emptyState: {
-    title: "No Events Found",
-    description: "There are currently no events matching your selected time horizon or category filter.",
-    resetButtonText: "Reset Filters",
+    upcoming: {
+      title: "No Upcoming Events",
+      description: "No upcoming events have been published yet.",
+    },
+    past: {
+      title: "No Past Events",
+      description: "No past events to show yet.",
+    },
+    featured: {
+      title: "No Featured Event",
+      description: "No featured event right now.",
+    },
+    filtered: {
+      title: "No Events Found",
+      description: "There are currently no events matching your selected category or search filter.",
+      resetButtonText: "Reset Filters",
+    }
   },
   offlineState: {
     title: "Working Offline",

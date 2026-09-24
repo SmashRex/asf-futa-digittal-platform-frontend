@@ -25,35 +25,42 @@ import { ApiError } from '../api/types';
 /**
  * Format ISO YYYY-MM-DD or date string to readable Tuesday, Mon DD format
  */
-export function formatStudyDate(isoDateStr?: string): string {
-  if (!isoDateStr) return '';
-  if (isoDateStr.includes(',')) return isoDateStr;
+export function formatStudyDate(isoDateStr?: string | null): string {
+  if (!isoDateStr || typeof isoDateStr !== 'string') return '';
+  const trimmed = isoDateStr.trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === 'Invalid Date') return '';
+  if (trimmed.includes(',')) return trimmed;
   try {
-    const parts = isoDateStr.split('-');
+    const parts = trimmed.split('-');
     if (parts.length === 3) {
       const year = Number(parts[0]);
       const month = Number(parts[1]) - 1;
       const day = Number(parts[2]);
-      const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
-      return d.toLocaleDateString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC'
-      });
+      if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+        const d = new Date(Date.UTC(year, month, day, 12, 0, 0));
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('en-US', {
+            weekday: 'long',
+            month: 'short',
+            day: 'numeric',
+            timeZone: 'UTC'
+          });
+        }
+      }
     }
-    const d = new Date(isoDateStr);
+    const d = new Date(trimmed);
     if (!isNaN(d.getTime())) {
-      return d.toLocaleDateString('en-US', {
+      const formatted = d.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
         day: 'numeric'
       });
+      if (formatted && formatted !== 'Invalid Date') return formatted;
     }
   } catch {
     // fallback
   }
-  return isoDateStr;
+  return trimmed === 'Invalid Date' ? '' : trimmed;
 }
 
 /**
@@ -135,9 +142,9 @@ export function normalizeBibleStudyItem(raw: any): BibleStudyItem {
   }
 
   // Authoritative date resolution: prefer scheduledDate
-  const scheduledDate = raw.scheduledDate || raw.scheduled_date || undefined;
-  const legacyStudyDate = raw.studyDate || raw.study_date || raw.date || undefined;
-  const displayDate = scheduledDate ? formatStudyDate(scheduledDate) : String(legacyStudyDate || '').trim();
+  const scheduledDate = raw.scheduledDate !== undefined ? raw.scheduledDate : (raw.scheduled_date !== undefined ? raw.scheduled_date : null);
+  const legacyStudyDate = raw.studyDate !== undefined ? raw.studyDate : (raw.study_date !== undefined ? raw.study_date : (raw.date !== undefined ? raw.date : null));
+  const displayDate = scheduledDate ? formatStudyDate(scheduledDate) : (legacyStudyDate ? formatStudyDate(legacyStudyDate) : '');
 
   // Memory verse normalization
   const rawMv = raw.memoryVerse || raw.memory_verse;
@@ -252,8 +259,9 @@ export function normalizeBibleStudyItem(raw: any): BibleStudyItem {
     isCurrent: Boolean(raw.isCurrent ?? raw.is_current ?? false),
     isPublished: publicationStatus === 'published',
     publicationStatus,
-    seriesId: raw.seriesId || raw.series_id || undefined,
-    seriesTitle: raw.seriesTitle || raw.series_title || undefined
+    seriesId: raw.seriesId !== undefined ? raw.seriesId : (raw.series_id !== undefined ? raw.series_id : null),
+    seriesTitle: raw.seriesTitle !== undefined ? raw.seriesTitle : (raw.series_title !== undefined ? raw.series_title : null),
+    academicSessionId: raw.academicSessionId !== undefined ? raw.academicSessionId : (raw.academic_session_id !== undefined ? raw.academic_session_id : null)
   };
 }
 
@@ -332,7 +340,10 @@ export const bibleStudyService = {
       if (
         err?.code === 'NO_CURRENT_STUDY' || 
         err?.statusCode === 404 || 
-        err?.message?.includes('No current Bible Study')
+        err?.response?.status === 404 ||
+        err?.status === 404 ||
+        err?.message?.includes('No current Bible Study') ||
+        err?.message?.includes('NO_CURRENT_STUDY')
       ) {
         return null;
       }
@@ -346,8 +357,16 @@ export const bibleStudyService = {
    */
   async getLatestStudy(): Promise<BibleStudyItem | null> {
     try {
-      return await this.getCurrentStudy();
+      const current = await this.getCurrentStudy();
+      if (current) return current;
+      if (APP_CONFIG.features.useMockServices) {
+        return mockBibleStudies.find(s => s.isCurrent) || mockBibleStudies[0] || null;
+      }
+      return null;
     } catch {
+      if (APP_CONFIG.features.useMockServices) {
+        return mockBibleStudies.find(s => s.isCurrent) || mockBibleStudies[0] || null;
+      }
       return null;
     }
   },
