@@ -4,8 +4,6 @@
  */
 
 import { apiClient } from '../api/client';
-import { API_CONFIG } from '../../config/api.config';
-import { ApiResponse } from '../api/types';
 
 export interface Department {
   id: string;
@@ -27,51 +25,13 @@ export class DepartmentService {
       return this.cache;
     }
 
-    // 1. Primary: apiClient /departments (resolves to ${API_CONFIG.baseUrl}/departments)
-    try {
-      const response = await apiClient.get<Department[]>('/departments');
-      if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
-        this.cache = response.data;
-        return response.data;
-      }
-    } catch (err) {
-      console.warn('apiClient.get(/departments) error, falling back to direct fetch:', err);
+    const response = await apiClient.get<Department[]>('/departments');
+    if (response && response.success && Array.isArray(response.data)) {
+      this.cache = response.data;
+      return response.data;
     }
 
-    // 2. Relative direct fetch: /api/departments
-    try {
-      const res = await fetch('/api/departments', {
-        headers: { 'Accept': 'application/json' },
-      });
-      if (res.ok) {
-        const json: ApiResponse<Department[]> = await res.json();
-        if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
-          this.cache = json.data;
-          return json.data;
-        }
-      }
-    } catch (err) {
-      console.warn('Direct relative /api/departments fetch error:', err);
-    }
-
-    // 3. Fallback to API_CONFIG.baseUrl /departments
-    try {
-      const fallbackUrl = `${API_CONFIG.baseUrl}/departments`;
-      const res = await fetch(fallbackUrl, {
-        headers: { 'Accept': 'application/json' },
-      });
-      if (res.ok) {
-        const json: ApiResponse<Department[]> = await res.json();
-        if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
-          this.cache = json.data;
-          return json.data;
-        }
-      }
-    } catch (err) {
-      console.warn('Fallback backend /departments fetch error:', err);
-    }
-
-    return this.cache || [];
+    throw new Error('Departments endpoint returned an invalid response.');
   }
 
   /**
