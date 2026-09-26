@@ -20,7 +20,10 @@ import {
   PermissionKey,
   EffectivePermissions,
   PermissionOverride,
-  isAuthorizedAdminRole
+  VALID_ADMIN_ROLES,
+  isAuthorizedAdminRole,
+  normalizeAdminRole,
+  resolveUserAdminRoles
 } from '../../types/adminTypes';
 import { 
   initialAdminContent, 
@@ -42,6 +45,7 @@ import { AdminSidebar } from '../../components/admin/AdminSidebar';
 import { useDevState } from '../../dev/simulations/devState';
 import { APP_CONFIG } from '../../config/app.config';
 import { membersService } from '../../services/members/members.service';
+import { authService } from '../../services/auth/auth.service';
 
 export interface AdminContextType {
   activeRole: AdminRole;
@@ -114,48 +118,86 @@ export const AdminLayout: React.FC = () => {
   const devState = useDevState();
 
   // Perform Admin Portal Authorization Entry Guard
-  const userSession = (() => {
+  const [userSession, setUserSession] = useState<any>(() => {
     try {
       const saved = localStorage.getItem('asf_user_session');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
-  })();
+  });
 
-  const userRolesList: string[] = Array.isArray(userSession?.roles)
-    ? userSession.roles
-    : [];
+  // Validate session against authoritative backend when mock services are disabled
+  useEffect(() => {
+    let isMounted = true;
+    if (!APP_CONFIG.features.useMockServices) {
+      authService.getMe()
+        .then((verifiedUser) => {
+          if (!isMounted) return;
+          if (!verifiedUser) {
+            setUserSession(null);
+          } else {
+            setUserSession(verifiedUser);
+          }
+        })
+        .catch(() => {
+          // Network or transient error keeps cached session as handled by getMe()
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
-  const adminRoleInSession = userRolesList.find(r => isAuthorizedAdminRole(r));
-  const effectiveCurrentRole = devState.simulatedRoleOverride || adminRoleInSession;
+  const authorizedUserAdminRoles: AdminRole[] = useMemo(() => {
+    return resolveUserAdminRoles(userSession);
+  }, [userSession]);
 
-  const [activeRole, setActiveRole] = useState<AdminRole>(() => {
+  const userRolesList: string[] = useMemo(() => {
+    const rawRoles: string[] = Array.isArray(userSession?.roles) ? userSession.roles : [];
+    return Array.from(new Set([...authorizedUserAdminRoles, ...rawRoles]));
+  }, [userSession, authorizedUserAdminRoles]);
+
+  const adminRoleInSession: AdminRole | undefined = authorizedUserAdminRoles[0];
+  const simulatedRole = APP_CONFIG.features.enableDevSimulations && devState.simulatedRoleOverride
+    ? normalizeAdminRole(devState.simulatedRoleOverride)
+    : null;
+  const effectiveCurrentRole = simulatedRole || adminRoleInSession;
+
+  const [activeRole, setActiveRoleState] = useState<AdminRole>(() => {
     if (effectiveCurrentRole && isAuthorizedAdminRole(effectiveCurrentRole)) {
       return effectiveCurrentRole;
     }
-    try {
-      const saved = localStorage.getItem('asf_admin_role');
-      return (saved as AdminRole) || 'President / Executive';
-    } catch {
-      return 'President / Executive';
-    }
+    return 'President / Executive';
   });
 
-  // Keep activeRole synchronized with simulated role changes
-  useEffect(() => {
-    if (devState.simulatedRoleOverride && isAuthorizedAdminRole(devState.simulatedRoleOverride)) {
-      setActiveRole(devState.simulatedRoleOverride);
-    } else if (adminRoleInSession && isAuthorizedAdminRole(adminRoleInSession)) {
-      setActiveRole(adminRoleInSession);
+  const setActiveRole = (nextRole: AdminRole) => {
+    const normalized = normalizeAdminRole(nextRole);
+    if (!normalized) return;
+    if (APP_CONFIG.features.enableDevSimulations || authorizedUserAdminRoles.includes(normalized)) {
+      setActiveRoleState(normalized);
     }
-  }, [devState.simulatedRoleOverride, adminRoleInSession]);
+  };
 
-  const hasAnyAdminRole = devState.simulatedRoleOverride 
-    ? isAuthorizedAdminRole(devState.simulatedRoleOverride)
-    : userRolesList.some(r => isAuthorizedAdminRole(r));
+  // Keep activeRole synchronized with simulated role or authenticated session role changes
+  useEffect(() => {
+    if (simulatedRole && isAuthorizedAdminRole(simulatedRole)) {
+      setActiveRoleState(simulatedRole);
+    } else if (adminRoleInSession && !authorizedUserAdminRoles.includes(activeRole)) {
+      setActiveRoleState(adminRoleInSession);
+    }
+  }, [simulatedRole, adminRoleInSession, authorizedUserAdminRoles, activeRole]);
+
+  const hasAnyAdminRole = simulatedRole
+    ? isAuthorizedAdminRole(simulatedRole)
+    : authorizedUserAdminRoles.length > 0;
 
   const isActiveRoleAuthorized = isAuthorizedAdminRole(activeRole);
+
+  // If unauthenticated (no userSession and no dev simulation), redirect to login
+  if (!userSession && !simulatedRole) {
+    return <Navigate to="/login" replace />;
+  }
 
   // If user session has no authorized admin roles, OR if activeRole is not an authorized admin role:
   // IMMEDIATELY RETURN TO MEMBER APP (DO NOT RENDER ADMIN PORTAL)
@@ -210,27 +252,11 @@ export const AdminLayout: React.FC = () => {
     }
   });
 
-  // Handover checklist store
-  const [handoverChecklist, setHandoverChecklist] = useState<HandoverChecklistItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('asf_admin_handover');
-      const parsed = saved ? JSON.parse(saved) : initialHandoverChecklist;
-      return sanitizeListWithIds(parsed, 'chk');
-    } catch {
-      return sanitizeListWithIds(initialHandoverChecklist, 'chk');
-    }
-  });
+  // Handover checklist store (no localStorage or mock state persistence)
+  const [handoverChecklist, setHandoverChecklist] = useState<HandoverChecklistItem[]>([]);
 
-  // Governance requests store
-  const [governanceRequests, setGovernanceRequests] = useState<GovernanceRequest[]>(() => {
-    try {
-      const saved = localStorage.getItem('asf_admin_governance');
-      const parsed = saved ? JSON.parse(saved) : initialGovernanceRequests;
-      return sanitizeListWithIds(parsed, 'gov');
-    } catch {
-      return sanitizeListWithIds(initialGovernanceRequests, 'gov');
-    }
-  });
+  // Governance requests store (no localStorage or mock state persistence)
+  const [governanceRequests, setGovernanceRequests] = useState<GovernanceRequest[]>([]);
 
   // Batch 07 Stores
   const [systemHealth, setSystemHealth] = useState<SystemHealthItem[]>(() => {
@@ -291,10 +317,6 @@ export const AdminLayout: React.FC = () => {
   };
 
   useEffect(() => {
-    localStorage.setItem('asf_admin_role', activeRole);
-  }, [activeRole]);
-
-  useEffect(() => {
     localStorage.setItem('asf_admin_content', JSON.stringify(contentItems));
   }, [contentItems]);
 
@@ -302,9 +324,9 @@ export const AdminLayout: React.FC = () => {
     localStorage.setItem('asf_admin_members', JSON.stringify(members));
   }, [members]);
 
-  // When connected to the staging backend, fetch authoritative members
+  // When connected to the backend for non-President admin roles that use /api/members
   useEffect(() => {
-    if (!APP_CONFIG.features.useMockServices) {
+    if (!APP_CONFIG.features.useMockServices && activeRole !== 'President / Executive') {
       membersService.getMembers({ limit: 100 })
         .then(result => {
           const memberList = result?.data || (result as any)?.members;
@@ -330,7 +352,7 @@ export const AdminLayout: React.FC = () => {
           console.warn('Real backend members fetch error in AdminLayout:', err);
         });
     }
-  }, []);
+  }, [activeRole]);
 
   useEffect(() => {
     localStorage.setItem('asf_admin_audit', JSON.stringify(auditLogs));
@@ -339,14 +361,6 @@ export const AdminLayout: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('asf_admin_leadership', JSON.stringify(leadershipRoles));
   }, [leadershipRoles]);
-
-  useEffect(() => {
-    localStorage.setItem('asf_admin_handover', JSON.stringify(handoverChecklist));
-  }, [handoverChecklist]);
-
-  useEffect(() => {
-    localStorage.setItem('asf_admin_governance', JSON.stringify(governanceRequests));
-  }, [governanceRequests]);
 
   useEffect(() => {
     localStorage.setItem('asf_admin_health', JSON.stringify(systemHealth));
@@ -746,6 +760,7 @@ export const AdminLayout: React.FC = () => {
       <AdminHeader 
         activeRole={activeRole}
         onRoleChange={setActiveRole}
+        availableRoles={authorizedUserAdminRoles}
         onToggleMobileNav={() => setIsMobileNavOpen(!isMobileNavOpen)}
         isMobileNavOpen={isMobileNavOpen}
       />

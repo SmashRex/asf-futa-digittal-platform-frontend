@@ -3,8 +3,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+function getApiBaseUrl(): string {
+  // In development mode (AI Studio dev preview on *.run.app or local Vite dev server),
+  // route through Vite's dev server proxy (/api) to prevent browser cross-origin CORS rejections from Render.
+  // In production builds (Vercel deployment), strictly route directly to the authoritative backend.
+  if (import.meta.env.DEV) {
+    return '/api';
+  }
+  const envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (envUrl && envUrl !== '/' && (envUrl.startsWith('http://') || envUrl.startsWith('https://'))) {
+    return envUrl.replace(/\/+$/, '');
+  }
+  return 'https://asf-digital-platform-backend.onrender.com/api';
+}
+
 export const API_CONFIG = {
-  baseUrl: (import.meta.env.VITE_API_BASE_URL || 'https://asf-digital-platform-backend.onrender.com/api').replace(/\/+$/, ''),
+  baseUrl: getApiBaseUrl(),
   timeoutMs: 15000,
   headers: {
     'Content-Type': 'application/json',
@@ -21,16 +35,30 @@ export const API_CONFIG = {
     },
     members: {
       base: '/members',
-      detail: (id: string) => `/members/${id}`,
-      role: (id: string) => `/members/${id}/role`,
-      status: (id: string) => `/members/${id}/status`,
-      academicLevel: (id: string) => `/members/${id}/academic-level`,
+      detail: (id: string) => `/members/${encodeURIComponent(id)}`,
+      role: (id: string) => `/members/${encodeURIComponent(id)}/role`,
+      status: (id: string) => `/members/${encodeURIComponent(id)}/status`,
+      academicLevel: (id: string) => `/members/${encodeURIComponent(id)}/academic-level`,
       resetPassword: (id: string) => `/members/${encodeURIComponent(id)}/reset-password`,
+    },
+    president: {
+      roster: '/president/roster',
+      analytics: '/president/analytics',
+      governanceRequests: '/president/governance/requests',
+      approveGovernanceRequest: (id: string) => `/president/governance/requests/${encodeURIComponent(id)}/approve`,
+      rejectGovernanceRequest: (id: string) => `/president/governance/requests/${encodeURIComponent(id)}/reject`,
+      handovers: '/president/handovers',
+      handoverDetail: (id: string) => `/president/handovers/${encodeURIComponent(id)}`,
+      approveHandover: (id: string) => `/president/handovers/${encodeURIComponent(id)}/approve`,
+      publishHandover: (id: string) => `/president/handovers/${encodeURIComponent(id)}/publish`,
+    },
+    governance: {
+      requests: '/governance/requests',
     },
     academicSessions: {
       base: '/academic-sessions',
       active: '/academic-sessions/active',
-      progress: (id: string) => `/academic-sessions/${id}/progress`,
+      progress: (id: string) => `/academic-sessions/${encodeURIComponent(id)}/progress`,
     },
     bible: {
       translations: '/bible/translations',

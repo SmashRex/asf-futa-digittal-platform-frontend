@@ -50,6 +50,57 @@ interface NavItem {
   category?: 'core' | 'fs' | 'system';
 }
 
+export const PRESIDENT_NAV_ITEMS: NavItem[] = [
+  {
+    id: 'president-dashboard',
+    label: 'Dashboard',
+    path: '/admin/dashboard',
+    icon: LayoutDashboard,
+    requiredPermission: 'always',
+    category: 'core'
+  },
+  {
+    id: 'president-roster',
+    label: 'Fellowship Roster',
+    path: '/admin/members',
+    icon: Users,
+    requiredPermission: 'members.view',
+    category: 'core'
+  },
+  {
+    id: 'president-programs',
+    label: 'Programs',
+    path: '/admin/programs',
+    icon: Calendar,
+    requiredPermission: 'events.view',
+    category: 'core'
+  },
+  {
+    id: 'president-governance',
+    label: 'Governance & Approvals',
+    path: '/admin/governance',
+    icon: Scale,
+    requiredPermission: 'governance.view',
+    category: 'core'
+  },
+  {
+    id: 'president-handover',
+    label: 'Executive Handover',
+    path: '/admin/handover',
+    icon: Repeat,
+    requiredPermission: 'handover.view',
+    category: 'core'
+  },
+  {
+    id: 'president-analytics',
+    label: 'Analytics / Overview',
+    path: '/admin/analytics',
+    icon: Activity,
+    requiredPermission: 'always',
+    category: 'core'
+  }
+];
+
 export const ADMIN_NAV_ITEMS: NavItem[] = [
   {
     id: 'dashboard',
@@ -223,8 +274,11 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
     onCloseMobile();
   };
 
+  const isPresident = activeRole === 'President / Executive';
+  const navItemsPool = isPresident ? PRESIDENT_NAV_ITEMS : ADMIN_NAV_ITEMS;
+
   // Filter navigation items: strictly omit if user lacks permission
-  const visibleNavItems = ADMIN_NAV_ITEMS.filter(item => {
+  const visibleNavItems = navItemsPool.filter(item => {
     if (item.requiredPermission === 'always') return true;
     return hasPermission(item.requiredPermission);
   });
@@ -237,7 +291,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         <div className="flex items-center gap-2 mb-1">
           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
           <span className="text-[11px] font-extrabold uppercase tracking-widest text-[#5B0617]">
-            EXECUTIVE CONTEXT
+            {isPresident ? 'PRESIDENTIAL WORKSPACE' : 'EXECUTIVE CONTEXT'}
           </span>
         </div>
         <p className="text-xs font-bold text-[#18181B] truncate">
@@ -251,7 +305,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       {/* Main Navigation Links */}
       <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
         <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-[#52525B]">
-          PERMITTED MODULES
+          {isPresident ? 'PRESIDENTIAL DESKS' : 'PERMITTED MODULES'}
         </div>
 
         {visibleNavItems.length === 0 ? (
@@ -261,7 +315,7 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
         ) : (
           visibleNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname.startsWith(item.path);
+            const isActive = location.pathname.startsWith(item.path) || (item.id === 'president-programs' && location.pathname.startsWith('/admin/events'));
 
             return (
               <button

@@ -124,8 +124,118 @@ export const VALID_ADMIN_ROLES: AdminRole[] = [
   'Technical Administrator'
 ];
 
+export function normalizeAdminRole(roleOrOffice: string | null | undefined): AdminRole | null {
+  if (!roleOrOffice || typeof roleOrOffice !== 'string') return null;
+  const trimmed = roleOrOffice.trim();
+  if (!trimmed) return null;
+
+  if (VALID_ADMIN_ROLES.includes(trimmed as AdminRole)) {
+    return trimmed as AdminRole;
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (
+    lower === 'president' ||
+    lower === 'president / executive' ||
+    lower === 'president_dashboard'
+  ) {
+    return 'President / Executive';
+  }
+  if (
+    lower === 'vice president' ||
+    lower === 'vp / fs coordinator' ||
+    lower === 'foundational school coordinator' ||
+    lower === 'fs_dashboard'
+  ) {
+    return 'VP / FS Coordinator';
+  }
+  if (
+    lower === 'public relation officer (pro)/publicity coordinator' ||
+    lower === 'public relations officer' ||
+    lower === 'publicity coordinator' ||
+    lower === 'publicity_dashboard'
+  ) {
+    return 'Publicity Coordinator';
+  }
+  if (
+    lower === 'technical head' ||
+    lower === 'technical administrator' ||
+    lower === 'technical_head' ||
+    lower === 'technical_admin' ||
+    lower === 'technical_console'
+  ) {
+    return 'Technical Administrator';
+  }
+  if (lower === 'general secretary' || lower === 'assistant general secretary') {
+    return 'General Secretary';
+  }
+  if (lower === 'bible study coordinator') {
+    return 'Bible Study Coordinator';
+  }
+  if (lower === 'organizing coordinator' || lower === 'assistant organizing coordinator') {
+    return 'Organizing Coordinator';
+  }
+  if (lower === 'drama coordinator') {
+    return 'Drama Coordinator';
+  }
+  if (lower === 'prayer coordinator') {
+    return 'Prayer Coordinator';
+  }
+  if (lower === 'financial secretary') {
+    return 'Financial Secretary';
+  }
+  if (lower === 'treasurer') {
+    return 'Treasurer';
+  }
+  if (lower === 'librarian') {
+    return 'Librarian';
+  }
+
+  return null;
+}
+
 export function isAuthorizedAdminRole(role: string | null | undefined): role is AdminRole {
-  return !!role && VALID_ADMIN_ROLES.includes(role as AdminRole);
+  return normalizeAdminRole(role) !== null;
+}
+
+export function resolveUserAdminRoles(user: any): AdminRole[] {
+  if (!user || typeof user !== 'object') return [];
+  const resolved: AdminRole[] = [];
+  const addRole = (candidate: unknown) => {
+    if (!candidate) return;
+    if (typeof candidate === 'string') {
+      const norm = normalizeAdminRole(candidate);
+      if (norm && !resolved.includes(norm)) {
+        resolved.push(norm);
+      }
+    } else if (typeof candidate === 'object') {
+      const obj = candidate as Record<string, any>;
+      const rawName = obj.name || obj.officeName || obj.title || obj.id || obj.officeId || obj.dashboardId || obj.capabilityId;
+      if (typeof rawName === 'string') {
+        const norm = normalizeAdminRole(rawName);
+        if (norm && !resolved.includes(norm)) {
+          resolved.push(norm);
+        }
+      }
+    }
+  };
+
+  if (Array.isArray(user.roles)) user.roles.forEach(addRole);
+  if (Array.isArray(user.executiveOffices)) user.executiveOffices.forEach(addRole);
+  if (Array.isArray(user.dashboards)) user.dashboards.forEach(addRole);
+  if (Array.isArray(user.dashboardGrants)) user.dashboardGrants.forEach(addRole);
+  if (Array.isArray(user.capabilities)) user.capabilities.forEach(addRole);
+  if (typeof user.office === 'string') addRole(user.office);
+  if (typeof user.role === 'string') addRole(user.role);
+
+  // If the user holds President authority, ensure 'President / Executive' is first
+  const presIdx = resolved.indexOf('President / Executive');
+  if (presIdx > 0) {
+    resolved.splice(presIdx, 1);
+    resolved.unshift('President / Executive');
+  }
+
+  return resolved;
 }
 
 export type ContentStatus = 

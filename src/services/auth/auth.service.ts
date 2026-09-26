@@ -4,7 +4,7 @@
  */
 
 import { UserProfile, UserRole } from '../../types';
-import { isAuthorizedAdminRole } from '../../types/adminTypes';
+import { isAuthorizedAdminRole, normalizeAdminRole, resolveUserAdminRoles } from '../../types/adminTypes';
 import { APP_CONFIG } from '../../config/app.config';
 import { API_CONFIG } from '../../config/api.config';
 import { getDepartmentName, findDepartmentIdByName } from '../../config/departments.config';
@@ -60,12 +60,29 @@ class AuthService {
       }
     }
 
-    const roles: string[] = Array.isArray(rawUser?.roles) && rawUser.roles.length > 0
-      ? rawUser.roles 
-      : (rawUser?.role ? [rawUser.role] : ['Member']);
-    
+    const rawRoles: string[] = Array.isArray(rawUser?.roles) && rawUser.roles.length > 0
+      ? rawUser.roles.map((r: any) => (typeof r === 'string' ? r : String(r?.name || r?.id || '')))
+      : (rawUser?.role ? [String(rawUser.role)] : ['Member']);
+
+    const resolvedAdminRoles = resolveUserAdminRoles(rawUser);
+    const roles: string[] = Array.from(
+      new Set([
+        ...resolvedAdminRoles,
+        ...rawRoles.map(r => normalizeAdminRole(r) || r),
+        ...rawRoles,
+      ])
+    ).filter(Boolean);
+    if (roles.length === 0) {
+      roles.push('Member');
+    }
+
     // For presentation-only legacy badge display, prioritize administrative role if present
-    const presentationRole = (roles.find(r => isAuthorizedAdminRole(r)) || roles[0] || 'Member') as UserRole;
+    const presentationRole = (
+      resolvedAdminRoles[0] ||
+      roles.find(r => isAuthorizedAdminRole(r)) ||
+      roles[0] ||
+      'Member'
+    ) as UserRole;
     const academicLevel = rawUser?.academicLevel || rawUser?.level || '400 Level';
     const membershipStatus = rawUser?.membershipStatus || (academicLevel === 'Alumni' ? 'Alumni' : 'Active Student');
 
@@ -89,6 +106,13 @@ class AuthService {
       avatarUrl: rawUser?.avatarUrl,
       roles,
       role: presentationRole,
+      executiveOffices: Array.isArray(rawUser?.executiveOffices) ? rawUser.executiveOffices : undefined,
+      dashboards: Array.isArray(rawUser?.dashboards)
+        ? rawUser.dashboards
+        : Array.isArray(rawUser?.dashboardGrants)
+        ? rawUser.dashboardGrants
+        : undefined,
+      capabilities: Array.isArray(rawUser?.capabilities) ? rawUser.capabilities : undefined,
       programDurationYears: rawUser?.programDurationYears,
       isAlumni: membershipStatus === 'Alumni' || academicLevel === 'Alumni',
     };

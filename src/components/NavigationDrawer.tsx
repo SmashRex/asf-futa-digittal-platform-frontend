@@ -26,7 +26,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { UserProfile } from '../types';
-import { isAuthorizedAdminRole } from '../types/adminTypes';
+import { isAuthorizedAdminRole, resolveUserAdminRoles } from '../types/adminTypes';
 
 interface NavigationDrawerProps {
   isOpen: boolean;
@@ -60,7 +60,10 @@ export default function NavigationDrawer({
   if (!isOpen) return null;
 
   const hasAdminAccess = Boolean(
-    currentUser && Array.isArray(currentUser.roles) && currentUser.roles.some(r => isAuthorizedAdminRole(r))
+    currentUser && (
+      resolveUserAdminRoles(currentUser).length > 0 ||
+      (Array.isArray(currentUser.roles) && currentUser.roles.some(r => isAuthorizedAdminRole(r)))
+    )
   );
 
   const handleNavClick = (path: string) => {

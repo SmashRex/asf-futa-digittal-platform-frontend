@@ -10,6 +10,7 @@ import { StatusBadge } from '../../components/admin/StatusBadge';
 import { AdminFSCoordinatorDashboard } from './AdminFSCoordinatorDashboard';
 import { AdminPublicityDashboard } from './AdminPublicityDashboard';
 import { AdminBibleStudyDashboard } from './AdminBibleStudyDashboard';
+import { AdminPresidentDashboard } from './AdminPresidentDashboard';
 import { 
   BookOpen, 
   FileText, 
@@ -43,6 +44,11 @@ export const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { activeRole, contentItems, members, systemHealth, hasPermission } = useOutletContext<AdminContextType>();
 
+  // If the active role is President / Executive, render the dedicated Presidential Leadership Workspace
+  if (activeRole === 'President / Executive') {
+    return <AdminPresidentDashboard />;
+  }
+
   // If the active role is VP / FS Coordinator, render the dedicated FS Coordinator Dashboard
   if (activeRole === 'VP / FS Coordinator') {
     return <AdminFSCoordinatorDashboard />;
@@ -59,7 +65,6 @@ export const AdminDashboard: React.FC = () => {
   }
 
   const isGenSecRole = activeRole === 'General Secretary';
-  const isPresidentRole = activeRole === 'President / Executive';
 
   // Calculate real statistics from authoritative state
   const publishedCount = contentItems.filter(i => i.status === 'Published').length;

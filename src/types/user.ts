@@ -21,6 +21,9 @@ export interface UserProfile {
   avatarUrl?: string;
   roles: string[]; // Authoritative backend contract property: array of additive role strings
   role?: UserRole; // Derived primary role for existing UI component display
+  executiveOffices?: Array<string | { id?: string; officeId?: string; name?: string; officeName?: string }>;
+  dashboards?: string[];
+  capabilities?: string[];
   programDurationYears?: number; // 4 or 5 for undergraduate programmes
   isAlumni?: boolean;
 }

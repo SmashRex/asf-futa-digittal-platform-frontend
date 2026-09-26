@@ -226,14 +226,16 @@ export const AdminEvents: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-serif font-bold text-[#18181B] tracking-tight">
-              Events & Semester Schedule
+              {isPresident ? 'Fellowship Programs & Schedule' : 'Events & Semester Schedule'}
             </h1>
             <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-[#5B0617]/10 text-[#5B0617]">
-              {events.length} Gatherings
+              {events.length} {isPresident ? 'Programs' : 'Gatherings'}
             </span>
           </div>
           <p className="text-xs text-[#52525B] mt-1">
-            Authoritative scheduling and management for ASF fellowship programs.
+            {isPresident 
+              ? 'Authoritative executive review and schedule oversight of ASF fellowship programs.'
+              : 'Authoritative scheduling and management for ASF fellowship programs.'}
           </p>
         </div>
 
@@ -242,7 +244,7 @@ export const AdminEvents: React.FC = () => {
             onClick={() => loadEvents(activeFilter)}
             disabled={isLoading}
             className="p-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-[#52525B] transition-colors"
-            title="Refresh Events"
+            title="Refresh Programs"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
@@ -262,9 +264,11 @@ export const AdminEvents: React.FC = () => {
 
       {/* Role Notice */}
       {isPresident && (
-        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-          <span>President role has review-only oversight. Modification rights belong to Publicity and General Secretary.</span>
+        <div className="p-3 rounded-xl bg-[#FAF8F5] border border-[#E4E4E7] text-[#18181B] text-xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-[#5B0617] shrink-0" />
+            <span>Presidential oversight mode: Programs and calendar are view-only. Schedule modifications and cancellations are delegated to Publicity and General Secretary.</span>
+          </div>
         </div>
       )}
 
@@ -289,7 +293,7 @@ export const AdminEvents: React.FC = () => {
                 : 'text-[#52525B] hover:bg-stone-100'
             }`}
           >
-            Upcoming Gatherings
+            {isPresident ? 'Upcoming Programs' : 'Upcoming Gatherings'}
           </button>
           <button
             onClick={() => setActiveFilter('past')}
@@ -299,7 +303,7 @@ export const AdminEvents: React.FC = () => {
                 : 'text-[#52525B] hover:bg-stone-100'
             }`}
           >
-            Past Gatherings
+            {isPresident ? 'Past Programs' : 'Past Gatherings'}
           </button>
           <button
             onClick={() => setActiveFilter('all')}
@@ -309,13 +313,15 @@ export const AdminEvents: React.FC = () => {
                 : 'text-[#52525B] hover:bg-stone-100'
             }`}
           >
-            All Gatherings
+            {isPresident ? 'All Programs' : 'All Gatherings'}
           </button>
         </div>
 
-        <span className="text-[11px] text-[#52525B]">
-          Timezone: Africa/Lagos (WAT)
-        </span>
+        <div className="flex items-center gap-2 text-[11px] text-[#52525B]">
+          <span>{events.length} {isPresident ? 'programs recorded' : 'records in horizon'}</span>
+          <span>·</span>
+          <span>Timezone: Africa/Lagos (WAT)</span>
+        </div>
       </div>
 
       {/* Events Grid / List */}

@@ -44,8 +44,8 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
     try {
       const data = await departmentService.getDepartments();
       setDepartments(data);
-    } catch (err) {
-      console.error('Failed to load canonical departments:', err);
+    } catch (err: any) {
+      console.warn('Canonical departments currently unavailable:', err?.message || err);
       setDepartmentsError('Unable to load departments list.');
     } finally {
       setIsDepartmentsLoading(false);
@@ -313,22 +313,31 @@ export default function Register({ onLoginSuccess }: RegisterProps) {
                           ))}
                         </optgroup>
                       ))}
-                      {groupedDepartments.ungrouped.length > 0 && (
+                      {groupedDepartments.ungrouped.length > 0 ? (
                         <optgroup label="Other / General">
                           {groupedDepartments.ungrouped.map((dept) => (
                             <option key={dept.id} value={dept.id}>
-                              {dept.name}
+                              {dept.name === 'Other' ? 'Other / Not Listed' : dept.name}
                             </option>
                           ))}
                         </optgroup>
-                      )}
+                      ) : !departments.some(d => d.id === 'other') ? (
+                        <optgroup label="Other / General">
+                          <option value="other">Other / Not Listed</option>
+                        </optgroup>
+                      ) : null}
                     </>
                   ) : (
-                    departments.map((dept) => (
-                      <option key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </option>
-                    ))
+                    <>
+                      {departments.map((dept) => (
+                        <option key={dept.id} value={dept.id}>
+                          {dept.name === 'Other' ? 'Other / Not Listed' : dept.name}
+                        </option>
+                      ))}
+                      {departments.length > 0 && !departments.some(d => d.id === 'other') && (
+                        <option value="other">Other / Not Listed</option>
+                      )}
+                    </>
                   )}
                 </select>
                 {departmentsError && (

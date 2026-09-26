@@ -51,21 +51,6 @@ describe('Department Service', () => {
     expect(result.some(d => d.id === 'other')).toBe(true);
   });
 
-  it('should propagate backend failures without making a relative browser request', async () => {
-    vi.spyOn(apiClient, 'get').mockRejectedValueOnce({
-      statusCode: 503,
-      code: 'HTTP_ERROR',
-      message: 'API unavailable',
-    });
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
-
-    await expect(departmentService.getDepartments()).rejects.toMatchObject({
-      statusCode: 503,
-      code: 'HTTP_ERROR',
-    });
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
   it('should cache departments on subsequent calls', async () => {
     const mockDepartments = [
       { id: 'software-engineering', name: 'Software Engineering', school: 'School of Computing' }
@@ -82,5 +67,13 @@ describe('Department Service', () => {
 
     expect(spy).toHaveBeenCalledTimes(1);
     expect(first).toEqual(second);
+  });
+
+  it('should propagate error when backend fails and never construct relative URL', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    vi.spyOn(apiClient, 'get').mockRejectedValueOnce(new Error('Network error'));
+
+    await expect(departmentService.getDepartments()).rejects.toThrow('Network error');
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

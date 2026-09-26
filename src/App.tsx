@@ -68,6 +68,7 @@ import { AdminTechnicalLogs } from './screens/admin/AdminTechnicalLogs';
 import { AdminSystemConfiguration } from './screens/admin/AdminSystemConfiguration';
 import { AdminRoleAssignmentExecution } from './screens/admin/AdminRoleAssignmentExecution';
 import { AdminWebsiteContentEditor } from './screens/admin/AdminWebsiteContentEditor';
+import { AdminPresidentAnalytics } from './screens/admin/AdminPresidentAnalytics';
 
 // Foundational School Admin Platform Screens
 import { AdminFSStudents } from './screens/admin/AdminFSStudents';
@@ -364,9 +365,6 @@ function AppContent() {
     setCurrentUser(updatedUser);
     try {
       localStorage.setItem('asf_user_session', JSON.stringify(updatedUser));
-      if (isAuthorizedAdminRole(newRole)) {
-        localStorage.setItem('asf_admin_role', newRole);
-      }
     } catch {
       // ignore
     }
@@ -990,6 +988,26 @@ function AppContent() {
             <AdminRouteGuard requiredPermission="events.view" moduleName="Events Management" requiredScope="Secretariat & Events Desk">
               <AdminEvents />
             </AdminRouteGuard>
+          } 
+        />
+        <Route 
+          path="programs" 
+          element={
+            <AdminRouteGuard requiredPermission="events.view" moduleName="Fellowship Programs Oversight" requiredScope="President & Secretariat">
+              <AdminEvents />
+            </AdminRouteGuard>
+          } 
+        />
+        <Route 
+          path="analytics" 
+          element={
+            <AdminPresidentAnalytics />
+          } 
+        />
+        <Route 
+          path="fellowship-overview" 
+          element={
+            <Navigate to="/admin/analytics" replace />
           } 
         />
 

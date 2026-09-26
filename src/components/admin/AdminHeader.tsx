@@ -6,6 +6,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AdminRole } from '../../types/adminTypes';
+import { APP_CONFIG } from '../../config/app.config';
 import Logo from '../Logo';
 import { 
   ArrowLeft, 
@@ -23,6 +24,7 @@ import {
 interface AdminHeaderProps {
   activeRole: AdminRole;
   onRoleChange: (role: AdminRole) => void;
+  availableRoles?: AdminRole[];
   onToggleMobileNav: () => void;
   isMobileNavOpen: boolean;
   unreadCount?: number;
@@ -45,12 +47,18 @@ const ALL_ADMIN_ROLES: AdminRole[] = [
 export const AdminHeader: React.FC<AdminHeaderProps> = ({
   activeRole,
   onRoleChange,
+  availableRoles,
   onToggleMobileNav,
   isMobileNavOpen,
   unreadCount = 2
 }) => {
   const navigate = useNavigate();
   const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
+
+  const selectableRoles = APP_CONFIG.features.enableDevSimulations
+    ? ALL_ADMIN_ROLES
+    : (availableRoles && availableRoles.length > 0 ? availableRoles : [activeRole]);
+  const canSwitchRole = APP_CONFIG.features.enableDevSimulations || selectableRoles.length > 1;
 
   return (
     <header className="sticky top-0 z-40 w-full bg-[#FFFFFF] border-b border-[#E4E4E7] shadow-[0_1px_3px_rgba(0,0,0,0.02)]" id="asf-admin-header">
@@ -90,12 +98,14 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
         {/* Center/Right Controls */}
         <div className="flex items-center gap-2 sm:gap-3">
           
-          {/* Role Scoped Tester Dropdown */}
+          {/* Role Indicator / Scoped Selector */}
           <div className="relative">
             <button
-              onClick={() => setIsRoleMenuOpen(!isRoleMenuOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#FAF8F5] hover:bg-[#F3EFEA] border border-[#E4E4E7] text-xs font-medium text-[#18181B] transition-all"
-              title="Change active admin role for permissions testing"
+              onClick={() => canSwitchRole && setIsRoleMenuOpen(!isRoleMenuOpen)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#FAF8F5] border border-[#E4E4E7] text-xs font-medium text-[#18181B] transition-all ${
+                canSwitchRole ? 'hover:bg-[#F3EFEA] cursor-pointer' : 'cursor-default'
+              }`}
+              title={canSwitchRole ? 'Switch active administrative role' : 'Active administrative role'}
             >
               <Shield className="w-3.5 h-3.5 text-[#5B0617] shrink-0" />
               <div className="text-left hidden md:block">
@@ -109,11 +119,11 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
               <span className="text-xs font-semibold text-[#18181B] md:hidden truncate max-w-[100px]">
                 {activeRole.split(' ')[0]}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-[#52525B] shrink-0" />
+              {canSwitchRole && <ChevronDown className="w-3.5 h-3.5 text-[#52525B] shrink-0" />}
             </button>
 
             {/* Role Dropdown Popup */}
-            {isRoleMenuOpen && (
+            {canSwitchRole && isRoleMenuOpen && (
               <>
                 <div 
                   className="fixed inset-0 z-40" 
@@ -121,11 +131,13 @@ export const AdminHeader: React.FC<AdminHeaderProps> = ({
                 />
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-xl shadow-lg border border-[#E4E4E7] p-1.5 z-50 text-xs">
                   <div className="px-3 py-2 border-b border-[#E4E4E7] mb-1">
-                    <p className="font-semibold text-[#18181B]">Switch Admin Persona</p>
-                    <p className="text-[11px] text-[#52525B]">Tests role-scoped navigation & controls</p>
+                    <p className="font-semibold text-[#18181B]">Switch Admin Role</p>
+                    <p className="text-[11px] text-[#52525B]">
+                      {APP_CONFIG.features.enableDevSimulations ? 'Tests role-scoped navigation & controls' : 'Select from your assigned offices'}
+                    </p>
                   </div>
                   <div className="space-y-0.5">
-                    {ALL_ADMIN_ROLES.map((role) => {
+                    {selectableRoles.map((role) => {
                       const isPres = role === 'President / Executive';
                       const isFS = role === 'VP / FS Coordinator';
                       return (
